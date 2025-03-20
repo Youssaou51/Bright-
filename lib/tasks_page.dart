@@ -66,53 +66,121 @@ class _TasksPageState extends State<TasksPage> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text('Add Task'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: 'Title'),
-                onChanged: (value) => title = value,
-              ),
-              DropdownButton<Priority>(
-                value: priority,
-                onChanged: (Priority? newValue) {
-                  setState(() {
-                    priority = newValue!;
-                  });
-                },
-                items: Priority.values.map<DropdownMenuItem<Priority>>((Priority value) {
-                  return DropdownMenuItem<Priority>(
-                    value: value,
-                    child: Text(value.name.capitalize()),
-                  );
-                }).toList(),
-              ),
-            ],
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                if (title.isNotEmpty) {
-                  setState(() {
-                    _tasks.add(Task(
-                      id: DateTime.now().toString(),
-                      title: title,
-                      dueDate: DateTime.now(), // Automatically set to current date
-                      priority: priority,
-                    ));
-                  });
-                  Navigator.of(context).pop();
-                }
-              },
-              child: Text('Add'),
+          elevation: 10,
+          child: Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade100, Colors.blue.shade50],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Add Task',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade900,
+                  ),
+                ),
+                SizedBox(height: 20),
+                TextField(
+                  decoration: InputDecoration(
+                    labelText: 'Title',
+                    labelStyle: TextStyle(color: Colors.blue.shade900),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blue.shade900),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blue.shade900),
+                    ),
+                  ),
+                  onChanged: (value) => title = value,
+                ),
+                SizedBox(height: 20),
+                DropdownButtonFormField<Priority>(
+                  value: priority,
+                  decoration: InputDecoration(
+                    labelText: 'Priority',
+                    labelStyle: TextStyle(color: Colors.blue.shade900),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blue.shade900),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.blue.shade900),
+                    ),
+                  ),
+                  onChanged: (Priority? newValue) {
+                    setState(() {
+                      priority = newValue!;
+                    });
+                  },
+                  items: Priority.values.map<DropdownMenuItem<Priority>>((Priority value) {
+                    return DropdownMenuItem<Priority>(
+                      value: value,
+                      child: Text(
+                        value.name.capitalize(),
+                        style: TextStyle(color: Colors.blue.shade900),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        if (title.isNotEmpty) {
+                          setState(() {
+                            _tasks.add(Task(
+                              id: DateTime.now().toString(),
+                              title: title,
+                              dueDate: DateTime.now(), // Automatically set to current date
+                              priority: priority,
+                            ));
+                          });
+                          Navigator.of(context).pop();
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        backgroundColor: Colors.blue.shade900, // Use this instead of 'primary'
+                      ),
+                      child: Text(
+                        'Add',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.blue.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -131,22 +199,28 @@ class _TasksPageState extends State<TasksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Tasks'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: _addTask,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Month selection at the top
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Custom title row
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Tasks',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16), // Add some spacing
+            // Month selection at the top
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
                   icon: Icon(Icons.arrow_left),
@@ -166,82 +240,120 @@ class _TasksPageState extends State<TasksPage> {
                 ),
               ],
             ),
-          ),
-          // Search field
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
+            SizedBox(height: 16), // Add some spacing
+            // Search field
+            TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search tasks',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10)
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                filled: true,
+                fillColor: Colors.grey[200],
               ),
             ),
-          ),
-          // Progress indicator
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: LinearProgressIndicator(
-              value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
-              backgroundColor: Colors.grey[300],
-              color: Colors.blue,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-              '$_completedTasksCount/${_filteredTasks.length} tasks completed',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-          Expanded(
-            child: _filteredTasks.isEmpty
-                ? Center(child: Text('No tasks for this month.'))
-                : ListView.builder(
-              itemCount: _filteredTasks.length,
-              itemBuilder: (context, index) {
-                final task = _filteredTasks[index];
-                return Card(
-                  margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+            SizedBox(height: 16), // Add some spacing
+            // Centered Progress Indicator and Text
+            Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(
+                    value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
+                    backgroundColor: Colors.grey[300],
+                    color: Colors.blue,
+                    strokeWidth: 8,
                   ),
-                  child: ListTile(
-                    leading: Checkbox(
-                      value: task.isCompleted,
-                      onChanged: (_) => _toggleTaskCompletion(task),
+                  SizedBox(height: 16), // Add some spacing
+                  Text(
+                    '$_completedTasksCount/${_filteredTasks.length} tasks completed',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16), // Add some spacing
+            // Task list
+            Expanded(
+              child: _filteredTasks.isEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.assignment, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No tasks for this month.',
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
                     ),
-                    title: Text(
-                      task.title,
-                      style: TextStyle(
-                        decoration: task.isCompleted
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
+                  ],
+                ),
+              )
+                  : ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: _filteredTasks.length,
+                itemBuilder: (context, index) {
+                  final task = _filteredTasks[index];
+                  return Card(
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ListTile(
+                      leading: Checkbox(
+                        value: task.isCompleted,
+                        onChanged: (_) => _toggleTaskCompletion(task),
                       ),
+                      title: Text(
+                        task.title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          decoration: task.isCompleted
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Due: ${DateFormat.yMd().format(task.dueDate)}'),
+                          SizedBox(height: 4),
+                          Chip(
+                            label: Text(
+                              task.priority.name.capitalize(),
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: task.priority == Priority.low
+                                ? Colors.green
+                                : task.priority == Priority.medium
+                                ? Colors.orange
+                                : Colors.red,
+                          ),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteTask(task),
+                      ),
+                      onTap: () {
+                        // Navigate to task details
+                      },
                     ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Due: ${DateFormat.yMd().format(task.dueDate)}'),
-                        Text('Priority: ${task.priority.name}'),
-                      ],
-                    ),
-                    trailing: IconButton(
-                        icon: Icon(Icons.delete),
-                        onPressed: () => _deleteTask(task)),
-                    onTap: () {
-                      // Navigate to task details
-                    },
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addTask,
+        child: Icon(Icons.add, color: Colors.white),
+        backgroundColor: Colors.blue.shade900,
+        elevation: 5,
       ),
     );
   }
