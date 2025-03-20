@@ -3,6 +3,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io'; // For File class
+
 
 class ReportsPage extends StatefulWidget {
   @override
@@ -10,6 +13,7 @@ class ReportsPage extends StatefulWidget {
 }
 
 class _ReportsPageState extends State<ReportsPage> {
+  final SupabaseClient _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> reports = []; // List to store report details
   String selectedMonth = 'All'; // Default month for filtering
   List<Map<String, dynamic>> filteredReports = [];
@@ -18,95 +22,89 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   void initState() {
     super.initState();
-    _loadDummyReports();
-    _filterReports();
+    _fetchReports();
   }
 
-  // Dummy reports data for testing
-  void _loadDummyReports() {
-    DateTime now = DateTime.now();
-    reports.addAll([
-      {
-        "name": "Monthly Report - January",
-        "date": DateTime(now.year, 1),
-        "filePath": "https://example.com/report_january.pdf" // Example URL
-      },
-      {
-        "name": "Monthly Report - February",
-        "date": DateTime(now.year, 2),
-        "filePath": "https://example.com/report_february.pdf" // Example URL
-      },
-      {
-        "name": "Monthly Report - March",
-        "date": DateTime(now.year, 3),
-        "filePath": "https://example.com/report_march.pdf" // Example URL
-      },
-      {
-        "name": "Monthly Report - April",
-        "date": DateTime(now.year, 4),
-        "filePath": "https://example.com/report_april.pdf" // Example URL
-      },
-    ]);
-    _filterReports();
+  // Fetch reports from Supabase
+  Future<void> _fetchReports() async {
+    final response = await _supabase.from('reports').select('*').order('date', ascending: false);
+    setState(() {
+      reports = List<Map<String, dynamic>>.from(response);
+      _filterReports();
+    });
   }
 
-  // Function to simulate report upload (replace with your actual logic)
-  void _uploadReport() async {
+  // Upload report to Supabase
+  Future<void> _uploadReport() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx'],
     );
 
     if (result != null) {
-      setState(() {
-        isLoading = true;
-      });
+      setState(() => isLoading = true);
       try {
-        String fileName = result.files.single.name;
-        DateTime now = DateTime.now();
-        reports.add({
-          "name": fileName,
-          "date": now,
-          "filePath": result.files.single.path,
+        final file = result.files.single;
+
+        // Convert Uint8List to File
+        String tempPath = '${(await getTemporaryDirectory()).path}/${file.name}';
+        File tempFile = File(tempPath);
+        await tempFile.writeAsBytes(file.bytes!);
+
+        // Upload the converted file
+        final fileUrl = 'reports/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+        await _supabase.storage.from('reports').upload(fileUrl, tempFile);
+
+        // Insert report metadata into the `reports` table
+        await _supabase.from('reports').insert({
+          'name': file.name,
+          'date': DateTime.now().toIso8601String(),
+          'file_url': fileUrl,
         });
-        _filterReports();
+
+        // Refresh reports
+        _fetchReports();
       } catch (e) {
         print('Error uploading report: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload report')),
+        );
       } finally {
-        setState(() {
-          isLoading = false;
-        });
+        setState(() => isLoading = false);
       }
-    } else {
-      // User canceled the picker
     }
   }
 
-  void _deleteReport(int index) {
-    setState(() {
-      // Find the report in the original list
-      Map<String, dynamic> reportToDelete = filteredReports[index];
-      reports.remove(reportToDelete);
-      filteredReports.removeAt(index);
-    });
+
+  // Delete report from Supabase
+  Future<void> _deleteReport(String id) async {
+    try {
+      await _supabase.from('reports').delete().eq('id', id);
+      _fetchReports(); // Refresh the reports list
+    } catch (e) {
+      print('Error deleting report: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete report')),
+      );
+    }
   }
 
-  // Function to filter reports by selected month
+  // Filter reports by selected month
   void _filterReports() {
     if (selectedMonth == 'All') {
       filteredReports = List.from(reports);
     } else {
       filteredReports = reports.where((report) {
-        DateTime reportDate = report["date"];
+        DateTime reportDate = DateTime.parse(report["date"]);
         return DateFormat('MMMM').format(reportDate) == selectedMonth;
       }).toList();
     }
   }
 
+  // Download report file
   Future<void> _downloadReport(String url, String fileName) async {
     try {
       var dio = Dio();
-      // Specify the download path
       String dir = (await getApplicationDocumentsDirectory()).path;
       await dio.download(url, "$dir/$fileName");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,13 +180,15 @@ class _ReportsPageState extends State<ReportsPage> {
             ),
             SizedBox(height: 16),
             Expanded(
-              child: filteredReports.isEmpty
+              child: isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : filteredReports.isEmpty
                   ? Center(child: Text('No reports found.'))
                   : ListView.builder(
                 itemCount: filteredReports.length,
                 itemBuilder: (context, index) {
                   Map<String, dynamic> report = filteredReports[index];
-                  DateTime reportDate = report["date"];
+                  DateTime reportDate = DateTime.parse(report["date"]);
                   String formattedDate = DateFormat('MMMM yyyy').format(reportDate);
                   return Card(
                     margin: EdgeInsets.symmetric(vertical: 8.0),
@@ -202,13 +202,13 @@ class _ReportsPageState extends State<ReportsPage> {
                           IconButton(
                             icon: Icon(Icons.download),
                             onPressed: () {
-                              _downloadReport(report["filePath"], report["name"]);
+                              _downloadReport(report["file_url"], report["name"]);
                             },
                           ),
                           IconButton(
                             icon: Icon(Icons.delete),
                             onPressed: () {
-                              _deleteReport(index);
+                              _deleteReport(report["id"]);
                             },
                           ),
                         ],

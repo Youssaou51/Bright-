@@ -7,10 +7,10 @@ import 'dart:io';
 import 'profile_page.dart';
 import 'tasks_page.dart';
 import 'post.dart'; // Ensure you have the Post model imported
-import 'user.dart'; // Import your User model
+import 'user.dart' as local; // Alias for your local User class
 
 class DashboardPage extends StatefulWidget {
-  final User currentUser; // Add currentUser as a parameter
+  final local.User currentUser; // Use the aliased User class
 
   DashboardPage({required this.currentUser}); // Modify constructor
 
