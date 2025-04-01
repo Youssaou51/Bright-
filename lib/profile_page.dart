@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'user.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
+import 'user.dart' as localUser; // Alias for your local User class
 
 class ProfilePage extends StatefulWidget {
-  final User currentUser;
+  final localUser.User? currentUser; // Use the aliased User class
 
-  ProfilePage({required this.currentUser});
+  ProfilePage({this.currentUser});
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
@@ -16,15 +17,16 @@ class _ProfilePageState extends State<ProfilePage> {
   late String _username;
   late String _pseudo;
   late String _profilePictureUrl;
-
+  final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
+  final SupabaseClient _supabase = Supabase.instance.client; // Supabase client
 
   @override
   void initState() {
     super.initState();
-    _username = widget.currentUser.username;
-    _pseudo = widget.currentUser.pseudo;
-    _profilePictureUrl = widget.currentUser.imageUrl;
+    _username = widget.currentUser?.username ?? '';
+    _pseudo = widget.currentUser?.pseudo ?? '';
+    _profilePictureUrl = widget.currentUser?.imageUrl ?? '';
   }
 
   Future<void> _changeProfilePicture() async {
@@ -43,11 +45,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text("Choose from Gallery"),
                 onTap: () async {
                   Navigator.pop(context);
-                  final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+                  final pickedFile =
+                  await _picker.pickImage(source: ImageSource.gallery);
                   if (pickedFile != null) {
-                    setState(() {
-                      _profilePictureUrl = pickedFile.path;
-                    });
+                    await _uploadProfilePicture(File(pickedFile.path));
                   }
                 },
               ),
@@ -56,11 +57,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text("Take a Picture"),
                 onTap: () async {
                   Navigator.pop(context);
-                  final pickedFile = await _picker.pickImage(source: ImageSource.camera);
+                  final pickedFile =
+                  await _picker.pickImage(source: ImageSource.camera);
                   if (pickedFile != null) {
-                    setState(() {
-                      _profilePictureUrl = pickedFile.path;
-                    });
+                    await _uploadProfilePicture(File(pickedFile.path));
                   }
                 },
               ),
@@ -71,8 +71,36 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _uploadProfilePicture(File file) async {
+    final fileName = '${widget.currentUser?.username}_profile.jpg';
+    try {
+      final response = await _supabase.storage
+          .from('profile_pictures')
+          .upload(fileName, file);
+
+      final imageUrl = _supabase.storage
+          .from('profile_pictures')
+          .getPublicUrl(fileName);
+
+      await _supabase.from('profiles').update({
+        'image_url': imageUrl,
+        'id': widget.currentUser?.id,
+        'pseudo' : _pseudo,
+      });
+
+      setState(() {
+        _profilePictureUrl = imageUrl;
+      });
+    } on StorageException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading image: ${error.message}')),
+      );
+    }
+  }
+
   Future<void> _changePseudo() async {
-    TextEditingController pseudoController = TextEditingController(text: _pseudo);
+    TextEditingController pseudoController =
+    TextEditingController(text: _pseudo);
 
     showModalBottomSheet(
       context: context,
@@ -134,13 +162,31 @@ class _ProfilePageState extends State<ProfilePage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Center(child: Text("Save", style: TextStyle(fontSize: 16))),
+                child: Center(
+                    child: Text("Save", style: TextStyle(fontSize: 16))),
               ),
             ],
           ),
         );
       },
     );
+  }
+
+  Future<void> _updateProfile() async {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+    }
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await _supabase.auth.signOut(); // Sign out using Supabase
+      Navigator.pushReplacementNamed(context, '/'); // Navigate to the login page
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error signing out: $e')),
+      );
+    }
   }
 
   @override
@@ -159,7 +205,7 @@ class _ProfilePageState extends State<ProfilePage> {
         automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24.0), // Use named parameter
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
@@ -169,8 +215,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 radius: 60,
                 backgroundColor: Colors.grey[200],
                 backgroundImage: _profilePictureUrl.startsWith('http')
-                    ? NetworkImage(_profilePictureUrl)
-                    : FileImage(File(_profilePictureUrl)) as ImageProvider,
+                    ? NetworkImage(_profilePictureUrl) // Network image
+                    : FileImage(File(_profilePictureUrl)) as ImageProvider, // Local image
                 child: Align(
                   alignment: Alignment.bottomRight,
                   child: Container(
@@ -204,10 +250,7 @@ class _ProfilePageState extends State<ProfilePage> {
             _buildSettingOption(Icons.alternate_email, 'Change Pseudo', _changePseudo),
             SizedBox(height: 36),
             ElevatedButton(
-              onPressed: () {
-                print('Logout');
-                Navigator.pushReplacementNamed(context, '/');
-              },
+              onPressed: _signOut, // Call the sign-out method
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,

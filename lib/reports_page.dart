@@ -6,7 +6,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io'; // For File class
 
-
 class ReportsPage extends StatefulWidget {
   @override
   _ReportsPageState createState() => _ReportsPageState();
@@ -51,15 +50,18 @@ class _ReportsPageState extends State<ReportsPage> {
         File tempFile = File(tempPath);
         await tempFile.writeAsBytes(file.bytes!);
 
-        // Upload the converted file
+        // Upload the file to Supabase Storage
         final fileUrl = 'reports/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
         await _supabase.storage.from('reports').upload(fileUrl, tempFile);
+
+        // Get the public URL of the uploaded file
+        final publicUrl = _supabase.storage.from('reports').getPublicUrl(fileUrl);
 
         // Insert report metadata into the `reports` table
         await _supabase.from('reports').insert({
           'name': file.name,
           'date': DateTime.now().toIso8601String(),
-          'file_url': fileUrl,
+          'file_url': publicUrl, // Use the public URL
         });
 
         // Refresh reports
@@ -67,14 +69,13 @@ class _ReportsPageState extends State<ReportsPage> {
       } catch (e) {
         print('Error uploading report: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload report')),
+          SnackBar(content: Text('Failed to upload report: $e')),
         );
       } finally {
         setState(() => isLoading = false);
       }
     }
   }
-
 
   // Delete report from Supabase
   Future<void> _deleteReport(String id) async {

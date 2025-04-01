@@ -1,21 +1,69 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import 'dashboard_page.dart';
-import 'user.dart'; // Import your User model
+import 'user.dart' as local; // Alias for your local User class
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _signIn(BuildContext context) async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      final user = response.user;
+
+      if (user != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DashboardPage(
+              currentUser: local.User(
+                id: user.id, // Use the user ID from the response
+                username: user.email ?? 'User',
+                pseudo: user.email ?? 'User',
+                imageUrl: "https://via.placeholder.com/150",
+              ),
+            ),
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      String errorMessage = 'Error signing in: ${e.message}';
+      if (e.message.contains('invalid credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Create a variable to hold the user info
-    User loggedInUser = User(
-      username: 'exampleUser', // Replace with actual user data
-      pseudo: 'examplePseudo',
-      imageUrl: 'https://via.placeholder.com/150', // Default image URL
-    );
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        // Makes the content scrollable
         child: ConstrainedBox(
           constraints: BoxConstraints(
             minHeight: MediaQuery.of(context).size.height,
@@ -38,11 +86,12 @@ class LoginPage extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 40),
-                  // Username Input
+                  // Email Input
                   TextField(
+                    controller: _emailController,
                     decoration: InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Enter your username',
+                      labelText: 'Email',
+                      hintText: 'Enter your email',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Colors.grey.shade300),
@@ -59,6 +108,7 @@ class LoginPage extends StatelessWidget {
                   SizedBox(height: 20),
                   // Password Input
                   TextField(
+                    controller: _passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       hintText: 'Enter your password',
@@ -79,13 +129,7 @@ class LoginPage extends StatelessWidget {
                   SizedBox(height: 30),
                   // Login Button
                   ElevatedButton(
-                    onPressed: () {
-                      // Implement login logic here
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => DashboardPage(currentUser: loggedInUser)),
-                      );
-                    },
+                    onPressed: _isLoading ? null : () => _signIn(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
@@ -96,7 +140,9 @@ class LoginPage extends StatelessWidget {
                       ),
                       elevation: 5,
                     ),
-                    child: Text('Login'),
+                    child: _isLoading
+                        ? CircularProgressIndicator(color: Colors.white)
+                        : Text('Login'),
                   ),
                   SizedBox(height: 20),
                   // Forgot Password (Example)

@@ -1,46 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'reports_page.dart';
 import 'home_page.dart';
 import 'dart:io';
 import 'profile_page.dart';
 import 'tasks_page.dart';
-import 'post.dart'; // Ensure you have the Post model imported
-import 'user.dart' as local; // Alias for your local User class
+import 'post.dart';
+import 'user.dart' as local;
 
 class DashboardPage extends StatefulWidget {
-  final local.User currentUser; // Use the aliased User class
+  final local.User currentUser;
 
-  DashboardPage({required this.currentUser}); // Modify constructor
+  const DashboardPage({Key? key, required this.currentUser}) : super(key: key);
 
   @override
   _DashboardPageState createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage>
-    with SingleTickerProviderStateMixin {
+class _DashboardPageState extends State<DashboardPage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-  final PageController _pageController = PageController(initialPage: 0);
+  late PageController _pageController;
   final ImagePicker _picker = ImagePicker();
-
   List<Post> _posts = [];
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
-      vsync: this, // This refers to the TickerProvider
+      vsync: this,
     );
-    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.5).animate(
-        CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
-    _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset(0, -0.2))
-        .animate(
-        CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
+    _loadPosts(); // Ajoutez cette ligne
+  }
+
+  Future<void> _loadPosts() async {
+    try {
+      final response = await _supabase
+          .from('posts')
+          .select('*') // Get all columns
+          .order('timestamp', ascending: false); // Newest first
+
+      if (mounted) {
+        setState(() {
+          _posts = response.map<Post>((post) => Post.fromJson(post)).toList();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading posts: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -48,12 +64,6 @@ class _DashboardPageState extends State<DashboardPage>
     _pageController.dispose();
     _animationController.dispose();
     super.dispose();
-  }
-
-  void _onPageChanged(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   void _onItemTapped(int index) {
@@ -79,9 +89,10 @@ class _DashboardPageState extends State<DashboardPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Photo options
               ListTile(
                 leading: Icon(Icons.camera, color: Colors.blue),
-                title: Text('Take a Picture'),
+                title: Text('Take a Photo'),
                 onTap: () async {
                   Navigator.of(context).pop();
                   final pickedFile = await _picker.pickImage(source: ImageSource.camera);
@@ -92,7 +103,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
               ListTile(
                 leading: Icon(Icons.image, color: Colors.blue),
-                title: Text('Select from Gallery'),
+                title: Text('Choose Photo from Gallery'),
                 onTap: () async {
                   Navigator.of(context).pop();
                   final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -101,8 +112,10 @@ class _DashboardPageState extends State<DashboardPage>
                   }
                 },
               ),
+              Divider(),
+              // Video options
               ListTile(
-                leading: Icon(Icons.videocam, color: Colors.blue),
+                leading: Icon(Icons.videocam, color: Colors.red),
                 title: Text('Record a Video'),
                 onTap: () async {
                   Navigator.of(context).pop();
@@ -113,8 +126,8 @@ class _DashboardPageState extends State<DashboardPage>
                 },
               ),
               ListTile(
-                leading: Icon(Icons.video_library, color: Colors.blue),
-                title: Text('Select Video from Gallery'),
+                leading: Icon(Icons.video_library, color: Colors.red),
+                title: Text('Choose Video from Gallery'),
                 onTap: () async {
                   Navigator.of(context).pop();
                   final pickedFile = await _picker.pickVideo(source: ImageSource.gallery);
@@ -129,44 +142,35 @@ class _DashboardPageState extends State<DashboardPage>
       },
     );
   }
-
   void _promptForCaption(List<File> images, List<File> videos, String defaultCaption) {
-    String caption = defaultCaption; // Initialize caption with the default
+    String caption = defaultCaption;
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Add Caption'),
           content: Container(
-            width: double.maxFinite, // Ensure the container uses full width
+            width: double.maxFinite,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Display the selected media
                 if (images.isNotEmpty)
                   Image.file(images[0], fit: BoxFit.cover, width: double.maxFinite),
-                if (videos.isNotEmpty)
-                  Container(
-                    height: 200,
-                    color: Colors.black,
-                    child: Center(child: Text('Video Placeholder', style: TextStyle(color: Colors.white))),
-                  ),
-                // TextField overlay
                 Positioned(
-                  bottom: 20, // Adjust this value to position the TextField
+                  bottom: 20,
                   left: 16,
                   right: 16,
                   child: TextField(
                     onChanged: (value) {
-                      caption = value; // Update caption as user types
+                      caption = value;
                     },
                     decoration: InputDecoration(
                       hintText: 'Enter caption...',
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.8), // Slightly transparent background
+                      fillColor: Colors.white.withOpacity(0.8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8.0),
-                        borderSide: BorderSide.none, // Remove border
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
@@ -177,14 +181,14 @@ class _DashboardPageState extends State<DashboardPage>
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
-                _addPost(images, videos, caption); // Add the post with the caption
+                Navigator.of(context).pop();
+                _addPost(images, videos, caption);
               },
               child: Text('Submit'),
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: Text('Cancel'),
             ),
@@ -194,19 +198,88 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  void _addPost(List<File> images, List<File> videos, String caption) {
-    setState(() {
-      _posts.add(Post(
-        images: images,
-        videos: videos,
-        caption: caption,
-        timestamp: DateTime.now(),
-        likesCount: 0,
-        comments: [], // Initialize comments list
-      ));
-      // Sort posts by timestamp in descending order (newest first)
-      _posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    });
+  Future<void> _addPost(List<File> images, List<File> videos, String caption) async {
+    try {
+      final postId = DateTime.now().millisecondsSinceEpoch.toString();
+      List<String> imageUrls = [];
+      List<String> videoUrls = [];
+
+      // Upload images
+      if (images.isNotEmpty) {
+        for (var image in images) {
+          final imagePath = 'posts/images/$postId-${image.path.split('/').last}';
+
+          // Nouvelle syntaxe d'upload
+          await _supabase.storage
+              .from('posts')
+              .upload(imagePath, image);
+
+          final imageUrl = _supabase.storage
+              .from('posts')
+              .getPublicUrl(imagePath);
+
+          imageUrls.add(imageUrl);
+        }
+      }
+
+      // Upload videos
+      if (videos.isNotEmpty) {
+        for (var video in videos) {
+          final videoPath = 'posts/videos/$postId-${video.path.split('/').last}';
+
+          await _supabase.storage
+              .from('posts')
+              .upload(videoPath, video);
+
+          final videoUrl = _supabase.storage
+              .from('posts')
+              .getPublicUrl(videoPath);
+
+          videoUrls.add(videoUrl);
+        }
+      }
+
+      // Insert into database - nouvelle syntaxe
+      await _supabase.from('posts').insert({
+        'id': postId,
+        'user_id': widget.currentUser.id,
+        'username': widget.currentUser.username,
+        'profile_picture': widget.currentUser.imageUrl,
+        'caption': caption,
+        'likes_count': 0,
+        'image_urls': imageUrls.isNotEmpty ? imageUrls : null,
+        'video_urls': videoUrls.isNotEmpty ? videoUrls : null,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      // Update UI
+      if (mounted) {
+        setState(() {
+          _posts.insert(0, Post(
+            id: postId,
+            userId: widget.currentUser.id,
+            username: widget.currentUser.username,
+            profilePicture: widget.currentUser.imageUrl,
+            caption: caption,
+            images: imageUrls,
+            videos: videoUrls,
+            likedBy: [],
+            likesCount: 0,
+            comments: [],
+            timestamp: DateTime.now(),
+          ));
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post créé avec succès!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+      debugPrint('Erreur création post: $e');
+    }
   }
 
   @override
@@ -223,11 +296,7 @@ class _DashboardPageState extends State<DashboardPage>
               children: [
                 Text(
                   'Bright Future Foundation',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
                 IconButton(
                   icon: Icon(Icons.notifications, color: Colors.black54),
@@ -242,64 +311,32 @@ class _DashboardPageState extends State<DashboardPage>
           Expanded(
             child: PageView(
               controller: _pageController,
-              onPageChanged: _onPageChanged,
               physics: NeverScrollableScrollPhysics(),
               children: <Widget>[
-                HomePage(posts: _posts, currentUser: widget.currentUser), // Pass currentUser
+                HomePage(posts: _posts, currentUser: widget.currentUser,refreshPosts: _loadPosts ),
                 ReportsPage(),
                 Container(), // Placeholder for the media icon action
                 TasksPage(),
-                ProfilePage(currentUser: widget.currentUser), // Pass currentUser here
+                ProfilePage(currentUser: widget.currentUser),
               ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.3),
-              spreadRadius: 2,
-              blurRadius: 7,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedLabelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          unselectedLabelStyle: TextStyle(fontSize: 12),
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          items: [
-            BottomNavigationBarItem(
-              icon: FaIcon(FontAwesomeIcons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: FaIcon(FontAwesomeIcons.fileAlt),
-              label: 'Reports',
-            ),
-            BottomNavigationBarItem(
-              icon: FaIcon(FontAwesomeIcons.image), // Media Icon
-              label: 'Media',
-            ),
-            BottomNavigationBarItem(
-              icon: FaIcon(FontAwesomeIcons.tasks),
-              label: 'Tasks',
-            ),
-            BottomNavigationBarItem(
-              icon: FaIcon(FontAwesomeIcons.user),
-              label: 'Profile',
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.blue,
+        unselectedItemColor: Colors.grey,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: [
+          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.fileAlt), label: 'Reports'),
+          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.image), label: 'Media'),
+          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.tasks), label: 'Tasks'),
+          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.user), label: 'Profile'),
+        ],
       ),
     );
   }
