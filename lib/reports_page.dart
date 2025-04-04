@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:dio/dio.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:io'; // For File class
+import 'dart:io';
 
 class ReportsPage extends StatefulWidget {
+  const ReportsPage({Key? key}) : super(key: key);
+
   @override
   _ReportsPageState createState() => _ReportsPageState();
 }
 
 class _ReportsPageState extends State<ReportsPage> {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> reports = []; // List to store report details
-  String selectedMonth = 'All'; // Default month for filtering
-  List<Map<String, dynamic>> filteredReports = [];
-  bool isLoading = false; // To track if a report is being uploaded
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> reports = [];
+  bool isLoading = true;
+  bool isDeleting = false;
+  int? deletingIndex;
 
   @override
   void initState() {
@@ -24,202 +23,241 @@ class _ReportsPageState extends State<ReportsPage> {
     _fetchReports();
   }
 
-  // Fetch reports from Supabase
   Future<void> _fetchReports() async {
-    final response = await _supabase.from('reports').select('*').order('date', ascending: false);
-    setState(() {
-      reports = List<Map<String, dynamic>>.from(response);
-      _filterReports();
-    });
+    try {
+      setState(() => isLoading = true);
+
+      final response = await _supabase
+          .from('reports')
+          .select('*')
+          .order('name', ascending: true);
+
+      setState(() => reports = List<Map<String, dynamic>>.from(response));
+    } catch (e) {
+      _showError('Error loading reports: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
 
-  // Upload report to Supabase
   Future<void> _uploadReport() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx'],
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'txt', 'doc', 'docx'],
+        allowMultiple: false,
+      );
 
-    if (result != null) {
-      setState(() => isLoading = true);
-      try {
+      if (result != null && result.files.single.path != null) {
+        setState(() => isLoading = true);
         final file = result.files.single;
+        final userId = _supabase.auth.currentUser?.id;
 
-        // Convert Uint8List to File
-        String tempPath = '${(await getTemporaryDirectory()).path}/${file.name}';
-        File tempFile = File(tempPath);
-        await tempFile.writeAsBytes(file.bytes!);
+        if (userId == null) {
+          throw Exception('User not authenticated');
+        }
 
-        // Upload the file to Supabase Storage
-        final fileUrl = 'reports/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-        await _supabase.storage.from('reports').upload(fileUrl, tempFile);
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = 'report_${timestamp}_${file.name.replaceAll(' ', '_')}';
 
-        // Get the public URL of the uploaded file
-        final publicUrl = _supabase.storage.from('reports').getPublicUrl(fileUrl);
+        await _supabase.storage
+            .from('reports')
+            .upload(filePath, File(file.path!));
 
-        // Insert report metadata into the `reports` table
+        final fileUrl = _supabase.storage
+            .from('reports')
+            .getPublicUrl(filePath);
+
         await _supabase.from('reports').insert({
           'name': file.name,
-          'date': DateTime.now().toIso8601String(),
-          'file_url': publicUrl, // Use the public URL
+          'file_url': fileUrl,
+          'file_path': filePath,
+          'user_id': userId,
         });
 
-        // Refresh reports
-        _fetchReports();
-      } catch (e) {
-        print('Error uploading report: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload report: $e')),
-        );
-      } finally {
-        setState(() => isLoading = false);
+        await _fetchReports();
+        _showSuccess('${file.name} uploaded successfully');
+      }
+    } catch (e) {
+      _showError('Upload failed: ${e.toString()}');
+      debugPrint('Upload error details: $e');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _deleteReport(String id, String filePath, int index) async {
+    try {
+      setState(() {
+        isDeleting = true;
+        deletingIndex = index;
+      });
+
+      await _supabase.storage.from('reports').remove([filePath]);
+      await _supabase.from('reports').delete().eq('id', id);
+
+      await _fetchReports();
+      _showSuccess('Report deleted successfully');
+    } catch (e) {
+      _showError('Delete failed: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isDeleting = false;
+          deletingIndex = null;
+        });
       }
     }
   }
 
-  // Delete report from Supabase
-  Future<void> _deleteReport(String id) async {
-    try {
-      await _supabase.from('reports').delete().eq('id', id);
-      _fetchReports(); // Refresh the reports list
-    } catch (e) {
-      print('Error deleting report: $e');
+  void _showError(String message) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete report')),
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red[400],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
     }
   }
 
-  // Filter reports by selected month
-  void _filterReports() {
-    if (selectedMonth == 'All') {
-      filteredReports = List.from(reports);
-    } else {
-      filteredReports = reports.where((report) {
-        DateTime reportDate = DateTime.parse(report["date"]);
-        return DateFormat('MMMM').format(reportDate) == selectedMonth;
-      }).toList();
-    }
-  }
-
-  // Download report file
-  Future<void> _downloadReport(String url, String fileName) async {
-    try {
-      var dio = Dio();
-      String dir = (await getApplicationDocumentsDirectory()).path;
-      await dio.download(url, "$dir/$fileName");
+  void _showSuccess(String message) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Downloaded $fileName')),
-      );
-    } catch (e) {
-      print('Error downloading report: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to download report')),
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.green[400],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    List<String> months = [
-      'All',
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December'
-    ];
-
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Monthly Reports',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.upload_file),
-                  onPressed: _uploadReport,
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: selectedMonth,
-              items: months.map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                setState(() {
-                  selectedMonth = newValue!;
-                  _filterReports();
-                });
-              },
-              decoration: InputDecoration(
-                labelText: 'Select Month',
-                border: OutlineInputBorder(),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          'Reports',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 24,
+          ),
+        ),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.black,
+        automaticallyImplyLeading: false,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _uploadReport,
+        backgroundColor: Colors.blue[600],
+        child: const Icon(Icons.add, size: 28),
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: _fetchReports,
+        color: Colors.blue[600],
+        child: reports.isEmpty
+            ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.folder_open,
+                size: 60,
+                color: Colors.grey[400],
               ),
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : filteredReports.isEmpty
-                  ? Center(child: Text('No reports found.'))
-                  : ListView.builder(
-                itemCount: filteredReports.length,
-                itemBuilder: (context, index) {
-                  Map<String, dynamic> report = filteredReports[index];
-                  DateTime reportDate = DateTime.parse(report["date"]);
-                  String formattedDate = DateFormat('MMMM yyyy').format(reportDate);
-                  return Card(
-                    margin: EdgeInsets.symmetric(vertical: 8.0),
-                    child: ListTile(
-                      leading: Icon(Icons.description),
-                      title: Text(report["name"]),
-                      subtitle: Text(formattedDate),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.download),
-                            onPressed: () {
-                              _downloadReport(report["file_url"], report["name"]);
-                            },
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () {
-                              _deleteReport(report["id"]);
-                            },
-                          ),
-                        ],
-                      ),
+              const SizedBox(height: 16),
+              Text(
+                'No documents yet',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap the + button to upload',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ),
+        )
+            : ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          itemCount: reports.length,
+          itemBuilder: (context, index) {
+            final report = reports[index];
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 6),
+              child: Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  leading: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  );
-                },
+                    child: Icon(
+                      Icons.insert_drive_file,
+                      size: 28,
+                      color: Colors.blue[600],
+                    ),
+                  ),
+                  title: Text(
+                    report['name'],
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  trailing: isDeleting && deletingIndex == index
+                      ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : IconButton(
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: Colors.red[400],
+                    ),
+                    onPressed: () => _deleteReport(
+                      report['id'],
+                      report['file_path'],
+                      index,
+                    ),
+                  ),
+                  onTap: () {
+                    // Add preview/download functionality here
+                  },
+                ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
