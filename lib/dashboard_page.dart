@@ -208,16 +208,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (images.isNotEmpty) {
         for (var image in images) {
           final imagePath = 'posts/images/$postId-${image.path.split('/').last}';
-
-          // Nouvelle syntaxe d'upload
-          await _supabase.storage
-              .from('posts')
-              .upload(imagePath, image);
-
-          final imageUrl = _supabase.storage
-              .from('posts')
-              .getPublicUrl(imagePath);
-
+          await _supabase.storage.from('posts').upload(imagePath, image);
+          final imageUrl = _supabase.storage.from('posts').getPublicUrl(imagePath);
           imageUrls.add(imageUrl);
         }
       }
@@ -226,25 +218,21 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (videos.isNotEmpty) {
         for (var video in videos) {
           final videoPath = 'posts/videos/$postId-${video.path.split('/').last}';
-
-          await _supabase.storage
-              .from('posts')
-              .upload(videoPath, video);
-
-          final videoUrl = _supabase.storage
-              .from('posts')
-              .getPublicUrl(videoPath);
-
+          await _supabase.storage.from('posts').upload(videoPath, video);
+          final videoUrl = _supabase.storage.from('posts').getPublicUrl(videoPath);
           videoUrls.add(videoUrl);
         }
       }
 
-      // Insert into database - nouvelle syntaxe
+      // Construct the profile picture URL based on the username
+      final profilePictureUrl = _supabase.storage.from('profiles').getPublicUrl('${widget.currentUser.username}_profile.jpg');
+
+      // Insert into database
       await _supabase.from('posts').insert({
         'id': postId,
         'user_id': widget.currentUser.id,
         'username': widget.currentUser.username,
-        'profile_picture': widget.currentUser.imageUrl,
+        'profile_picture': profilePictureUrl, // Use constructed profile picture URL
         'caption': caption,
         'likes_count': 0,
         'image_urls': imageUrls.isNotEmpty ? imageUrls : null,
@@ -259,7 +247,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             id: postId,
             userId: widget.currentUser.id,
             username: widget.currentUser.username,
-            profilePicture: widget.currentUser.imageUrl,
+            profilePicture: profilePictureUrl, // Use constructed profile picture URL
             caption: caption,
             images: imageUrls,
             videos: videoUrls,
@@ -272,13 +260,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post créé avec succès!')),
+        const SnackBar(content: Text('Post created successfully!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: ${e.toString()}')),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
-      debugPrint('Erreur création post: $e');
+      debugPrint('Error creating post: $e');
     }
   }
 

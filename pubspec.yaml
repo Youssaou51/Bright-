@@ -47,6 +47,9 @@ dependencies:
   postgrest: ^2.4.1
 #  flutter_image_compress: ^2.4.0
 #  gal: ^2.3.1
+  uuid: ^4.0.0
+  month_picker_dialog: ^6.0.3
+  url_launcher: ^6.3.1
 
 
 

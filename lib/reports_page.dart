@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
+import 'package:month_picker_dialog/month_picker_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -17,6 +20,8 @@ class _ReportsPageState extends State<ReportsPage> {
   bool isDeleting = false;
   int? deletingIndex;
 
+  DateTime selectedDate = DateTime.now(); // To hold selected month and year
+
   @override
   void initState() {
     super.initState();
@@ -27,10 +32,13 @@ class _ReportsPageState extends State<ReportsPage> {
     try {
       setState(() => isLoading = true);
 
+      // Fetch reports filtered by month and year
       final response = await _supabase
           .from('reports')
           .select('*')
-          .order('name', ascending: true);
+          .gte('created_at', DateTime(selectedDate.year, selectedDate.month, 1).toIso8601String())
+          .lt('created_at', DateTime(selectedDate.year, selectedDate.month + 1, 1).toIso8601String())
+          .order('created_at', ascending: false); // Order by date created
 
       setState(() => reports = List<Map<String, dynamic>>.from(response));
     } catch (e) {
@@ -73,6 +81,7 @@ class _ReportsPageState extends State<ReportsPage> {
           'file_url': fileUrl,
           'file_path': filePath,
           'user_id': userId,
+          'created_at': DateTime.now().toIso8601String(),
         });
 
         await _fetchReports();
@@ -140,6 +149,24 @@ class _ReportsPageState extends State<ReportsPage> {
     }
   }
 
+  // Open month/year picker dialog
+  Future<void> _selectDate() async {
+    final DateTime? pickedDate = await showMonthPicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate != null && pickedDate != selectedDate) {
+      setState(() {
+        selectedDate = pickedDate;
+      });
+      await _fetchReports(); // Refresh reports after date selection
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -163,103 +190,124 @@ class _ReportsPageState extends State<ReportsPage> {
         backgroundColor: Colors.blue[600],
         child: const Icon(Icons.add, size: 28),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-        onRefresh: _fetchReports,
-        color: Colors.blue[600],
-        child: reports.isEmpty
-            ? Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.folder_open,
-                size: 60,
-                color: Colors.grey[400],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: GestureDetector(
+              onTap: _selectDate,
+              child: Row(
+                children: [
+                  Text(
+                    'Selected: ${selectedDate.month}/${selectedDate.year}',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.date_range, color: Colors.blue[600]),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                'No documents yet',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap the + button to upload',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ],
+            ),
           ),
-        )
-            : ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          itemCount: reports.length,
-          itemBuilder: (context, index) {
-            final report = reports[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 6),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+              onRefresh: _fetchReports,
+              color: Colors.blue[600],
+              child: reports.isEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.folder_open,
+                      size: 60,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No reports for this date',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
+              )
+                  : ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 6),
+                    child: Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.insert_drive_file,
+                            size: 28,
+                            color: Colors.blue[600],
+                          ),
+                        ),
+                        title: Text(
+                          report['name'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        trailing: isDeleting && deletingIndex == index
+                            ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                            : IconButton(
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red[400],
+                          ),
+                          onPressed: () => _deleteReport(
+                            report['id'],
+                            report['file_path'],
+                            index,
+                          ),
+                        ),
+                        onTap: () async {
+                          final url = report['file_url'];
+                          if (url != null && await canLaunchUrl(Uri.parse(url))) {
+                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                          } else {
+                            _showError('Could not open the report.');
+                          }
+                        },
+
+                      ),
                     ),
-                    child: Icon(
-                      Icons.insert_drive_file,
-                      size: 28,
-                      color: Colors.blue[600],
-                    ),
-                  ),
-                  title: Text(
-                    report['name'],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: isDeleting && deletingIndex == index
-                      ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  )
-                      : IconButton(
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: Colors.red[400],
-                    ),
-                    onPressed: () => _deleteReport(
-                      report['id'],
-                      report['file_path'],
-                      index,
-                    ),
-                  ),
-                  onTap: () {
-                    // Add preview/download functionality here
-                  },
-                ),
+                  );
+                },
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+//end

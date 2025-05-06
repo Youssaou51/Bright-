@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:video_player/video_player.dart';
 import 'post.dart';
 import 'comments_page.dart';
 import 'user.dart' as AppUser;
@@ -22,24 +21,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late Map<String, VideoPlayerController> _videoControllers;
+  late SupabaseClient _supabase;
   late Set<String> _likedPostIds;
-  late List<Post> _displayPosts;
-  final SupabaseClient _supabase = Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
-    _videoControllers = {};
+    _supabase = Supabase.instance.client; // Initialize the Supabase client
     _likedPostIds = {};
-    _displayPosts = List<Post>.from(widget.posts);
     _loadInitialLikes();
-  }
-
-  @override
-  void dispose() {
-    _videoControllers.values.forEach((controller) => controller.dispose());
-    super.dispose();
   }
 
   Future<void> _loadInitialLikes() async {
@@ -52,12 +42,10 @@ class _HomePageState extends State<HomePage> {
       if (response != null) {
         setState(() {
           _likedPostIds.addAll(
-            response
-                .where((post) {
+            response.where((post) {
               final likedByStr = post['liked_by'] as String? ?? '';
               return likedByStr.contains(widget.currentUser.id);
-            })
-                .map((post) => post['id'].toString()),
+            }).map((post) => post['id'].toString()),
           );
         });
       }
@@ -71,44 +59,31 @@ class _HomePageState extends State<HomePage> {
     if (isLiked) return;
 
     final newLikesCount = post.likesCount + 1;
-
-    // Convert liked_by to proper format for text column
-    final newLikedBy = post.likedBy.join(',') + (post.likedBy.isEmpty ? '' : ',') + widget.currentUser.id;
+    final newLikedBy = '${post.likedBy.join(',')}${post.likedBy.isNotEmpty ? ',' : ''}${widget.currentUser.id}';
 
     // Optimistic update
-    if (mounted) {
-      setState(() {
-        _likedPostIds.add(post.id);
-        post.likesCount = newLikesCount;
-        post.likedBy = [...post.likedBy, widget.currentUser.id];
-      });
-    }
+    setState(() {
+      _likedPostIds.add(post.id);
+      post.likesCount = newLikesCount;
+      post.likedBy.add(widget.currentUser.id);
+    });
 
     try {
-      final response = await _supabase
+      await _supabase
           .from('posts')
           .update({
         'likes_count': newLikesCount,
-        'liked_by': newLikedBy, // Store as comma-separated string
+        'liked_by': newLikedBy,
       })
           .eq('id', post.id);
-
-      if (response == null) {
-        throw Exception('Update failed - no response from server');
-      }
     } catch (e) {
       // Revert on error
-      if (mounted) {
-        setState(() {
-          _likedPostIds.remove(post.id);
-          post.likesCount = post.likesCount - 1;
-          post.likedBy.remove(widget.currentUser.id);
-        });
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to like post. Please try again.')),
-      );
-      print('Error updating like: $e');
+      setState(() {
+        _likedPostIds.remove(post.id);
+        post.likesCount--;
+        post.likedBy.remove(widget.currentUser.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to like post. Please try again.')));
     }
   }
 
@@ -116,10 +91,7 @@ class _HomePageState extends State<HomePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => CommentsPage(
-        post: post,
-        currentUser: widget.currentUser,
-      ),
+      builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
     );
   }
 
@@ -134,56 +106,32 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ListTile(
-            leading: CircleAvatar(
-              backgroundImage: NetworkImage(post.profilePicture),
-            ),
-            title: Text(
-              post.username,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              _formatDate(post.timestamp),
-              style: TextStyle(color: Colors.grey),
-            ),
+            leading: CircleAvatar(backgroundImage: NetworkImage(post.profilePicture)),
+            title: Text(post.username, style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_formatDate(post.timestamp), style: TextStyle(color: Colors.grey)),
           ),
           if (hasImages)
             SizedBox(
               height: 300,
               child: PageView.builder(
                 itemCount: post.images.length,
-                itemBuilder: (context, index) => Image.network(
-                  post.images[index],
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
+                itemBuilder: (context, index) => Image.network(post.images[index], fit: BoxFit.cover, width: double.infinity),
               ),
             ),
-          Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text(post.caption),
-          ),
+          Padding(padding: EdgeInsets.all(12.0), child: Text(post.caption)),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 12.0),
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.red : Colors.black,
-                  ),
-                  onPressed: isLiked ? null : () => _toggleLike(post),
+                  icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.red : Colors.black),
+                  onPressed: () => _toggleLike(post),
                 ),
                 Text(post.likesCount.toString()),
                 SizedBox(width: 16),
-                IconButton(
-                  icon: Icon(Icons.comment),
-                  onPressed: () => _showCommentsPage(post),
-                ),
+                IconButton(icon: Icon(Icons.comment), onPressed: () => _showCommentsPage(post)),
                 Spacer(),
-                IconButton(
-                  icon: Icon(Icons.share),
-                  onPressed: () {}, // Implement share functionality
-                ),
+                IconButton(icon: Icon(Icons.share), onPressed: () {},), // Implement share functionality
               ],
             ),
           ),
@@ -198,7 +146,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final sortedPosts = [..._displayPosts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final sortedPosts = [...widget.posts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     return RefreshIndicator(
       onRefresh: widget.refreshPosts,

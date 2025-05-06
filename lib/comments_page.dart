@@ -20,7 +20,6 @@ class CommentsPage extends StatefulWidget {
 class _CommentsPageState extends State<CommentsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final TextEditingController _commentController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
   List<Map<String, dynamic>> comments = [];
   bool _isLoading = true;
 
@@ -34,12 +33,12 @@ class _CommentsPageState extends State<CommentsPage> {
     try {
       final response = await _supabase
           .from('comments')
-          .select('*')
+          .select()
           .eq('post_id', widget.post.id)
           .order('created_at', ascending: true);
 
       setState(() {
-        comments = (response as List).cast<Map<String, dynamic>>();
+        comments = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
       });
     } catch (e) {
@@ -53,20 +52,24 @@ class _CommentsPageState extends State<CommentsPage> {
     if (commentText.isEmpty) return;
 
     try {
-      final response = await _supabase.from('comments').insert({
+      await _supabase.from('comments').insert({
         'post_id': widget.post.id,
         'user_id': widget.currentUser.id,
-        'username': widget.currentUser.username,
-        'profile_picture': widget.currentUser.imageUrl,
-        'comment_text': commentText,
+        'content': commentText,
       });
 
-      if (response.error != null) {
-        throw Exception('Error adding comment: ${response.error!.message}');
-      }
-
       _commentController.clear();
-      await _fetchComments(); // Fetch comments to update the list
+      setState(() {
+        comments.add({
+          'post_id': widget.post.id,
+          'user_id': widget.currentUser.id,
+          'content': commentText,
+          'users': {
+            'username': widget.currentUser.username,
+            'profile_picture': widget.currentUser.imageUrl,
+          },
+        });
+      });
     } catch (e) {
       print('Error adding comment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,42 +83,39 @@ class _CommentsPageState extends State<CommentsPage> {
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
-        appBar: AppBar(title: Text('Comments')),
+        appBar: AppBar(title: const Text('Comments')),
         body: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : comments.isEmpty
-                          ? Center(
-                        child: Text(
-                          'No comments yet\nBe the first to comment!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      )
-                          : ListView.builder(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        itemCount: comments.length,
-                        itemBuilder: (context, index) {
-                          final comment = comments[index];
-                          return _CommentBlock(
-                            username: comment['username'],
-                            text: comment['comment_text'],
-                            avatarUrl: comment['profile_picture'],
-                            isCurrentUser: comment['user_id'] == widget.currentUser.id,
-                          );
-                        },
-                      ),
-                    ],
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : comments.isEmpty
+                    ? Center(
+                  child: Text(
+                    'No comments yet\nBe the first to comment!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600]),
                   ),
+                )
+                    : ListView.builder(
+                  itemCount: comments.length,
+                  itemBuilder: (context, index) {
+                    final comment = comments[index];
+                    final user = comment['users'];
+                    return _CommentBlock(
+                      username: user != null
+                          ? user['username'] ?? 'Unknown'
+                          : 'Unknown',
+                      text: comment['content'] ?? '',
+                      avatarUrl: user != null
+                          ? user['profile_picture'] ?? ''
+                          : '',
+                      isCurrentUser:
+                      comment['user_id'] == widget.currentUser.id,
+                    );
+                  },
                 ),
               ),
             ),
@@ -142,7 +142,8 @@ class _CommentsPageState extends State<CommentsPage> {
                 ),
                 filled: true,
                 fillColor: Colors.grey[200],
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
           ),
@@ -179,7 +180,9 @@ class _CommentBlock extends StatelessWidget {
           if (!isCurrentUser)
             CircleAvatar(
               radius: 20,
-              backgroundImage: NetworkImage(avatarUrl),
+              backgroundImage:
+              avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+              child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
             ),
           Expanded(
             child: Container(
@@ -224,7 +227,9 @@ class _CommentBlock extends StatelessWidget {
           if (isCurrentUser)
             CircleAvatar(
               radius: 20,
-              backgroundImage: NetworkImage(avatarUrl),
+              backgroundImage:
+              avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+              child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
             ),
         ],
       ),

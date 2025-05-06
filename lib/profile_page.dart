@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import 'user.dart' as localUser; // Alias for your local User class
 
 class ProfilePage extends StatefulWidget {
-  final localUser.User? currentUser; // Use the aliased User class
+  final localUser.User? currentUser;
 
   ProfilePage({this.currentUser});
 
@@ -17,7 +17,6 @@ class _ProfilePageState extends State<ProfilePage> {
   late String _username;
   late String _pseudo;
   late String _profilePictureUrl;
-  final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
   final SupabaseClient _supabase = Supabase.instance.client; // Supabase client
 
@@ -26,7 +25,7 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _username = widget.currentUser?.username ?? '';
     _pseudo = widget.currentUser?.pseudo ?? '';
-    _profilePictureUrl = widget.currentUser?.imageUrl ?? '';
+    _profilePictureUrl = widget.currentUser?.imageUrl ?? ''; // Get profile picture URL
   }
 
   Future<void> _changeProfilePicture() async {
@@ -45,8 +44,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text("Choose from Gallery"),
                 onTap: () async {
                   Navigator.pop(context);
-                  final pickedFile =
-                  await _picker.pickImage(source: ImageSource.gallery);
+                  final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
                   if (pickedFile != null) {
                     await _uploadProfilePicture(File(pickedFile.path));
                   }
@@ -57,8 +55,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 title: Text("Take a Picture"),
                 onTap: () async {
                   Navigator.pop(context);
-                  final pickedFile =
-                  await _picker.pickImage(source: ImageSource.camera);
+                  final pickedFile = await _picker.pickImage(source: ImageSource.camera);
                   if (pickedFile != null) {
                     await _uploadProfilePicture(File(pickedFile.path));
                   }
@@ -74,33 +71,41 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _uploadProfilePicture(File file) async {
     final fileName = '${widget.currentUser?.username}_profile.jpg';
     try {
-      final response = await _supabase.storage
-          .from('profile_pictures')
-          .upload(fileName, file);
+      // Delete existing file if it exists
+      await _supabase.storage.from('profiles').remove([fileName]);
 
-      final imageUrl = _supabase.storage
-          .from('profile_pictures')
-          .getPublicUrl(fileName);
+      // Upload the new profile image
+      await _supabase.storage.from('profiles').upload(fileName, file);
 
-      await _supabase.from('profiles').update({
-        'image_url': imageUrl,
-        'id': widget.currentUser?.id,
-        'pseudo' : _pseudo,
+      // Get the public URL of the uploaded image
+      final imageUrl = _supabase.storage.from('profiles').getPublicUrl(fileName);
+
+      // Upsert (insert or update) the user's profile with the new image URL
+      final updateResponse = await _supabase.from('profiles').upsert({
+        'id': widget.currentUser!.id, // User ID
+        'username': _username,          // Username
+        'image_url': imageUrl           // Profile picture URL
       });
 
+      if (updateResponse.error != null) {
+        throw Exception('Failed to update profile: ${updateResponse.error!.message}');
+      }
+
+      // Update local state with the new URL
       setState(() {
         _profilePictureUrl = imageUrl;
       });
-    } on StorageException catch (error) {
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error uploading image: ${error.message}')),
+        SnackBar(content: Text('Profile picture updated successfully!')),
       );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $error')));
     }
   }
 
   Future<void> _changePseudo() async {
-    TextEditingController pseudoController =
-    TextEditingController(text: _pseudo);
+    TextEditingController pseudoController = TextEditingController(text: _pseudo);
 
     showModalBottomSheet(
       context: context,
@@ -131,8 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               SizedBox(height: 20),
-              Text("Change Pseudo",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text("Change Pseudo", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               SizedBox(height: 10),
               TextField(
                 controller: pseudoController,
@@ -162,8 +166,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Center(
-                    child: Text("Save", style: TextStyle(fontSize: 16))),
+                child: Center(child: Text("Save", style: TextStyle(fontSize: 16))),
               ),
             ],
           ),
@@ -172,20 +175,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _updateProfile() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-    }
-  }
-
   Future<void> _signOut() async {
     try {
-      await _supabase.auth.signOut(); // Sign out using Supabase
-      Navigator.pushReplacementNamed(context, '/'); // Navigate to the login page
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error signing out: $e')),
-      );
+      await _supabase.auth.signOut();
+      Navigator.pushReplacementNamed(context, '/');
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error signing out: $error')));
     }
   }
 
@@ -194,10 +189,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          'Profile',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: Text('Profile', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -205,7 +197,7 @@ class _ProfilePageState extends State<ProfilePage> {
         automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0), // Use named parameter
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
@@ -214,9 +206,9 @@ class _ProfilePageState extends State<ProfilePage> {
               child: CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.grey[200],
-                backgroundImage: _profilePictureUrl.startsWith('http')
-                    ? NetworkImage(_profilePictureUrl) // Network image
-                    : FileImage(File(_profilePictureUrl)) as ImageProvider, // Local image
+                backgroundImage: _profilePictureUrl.isNotEmpty
+                    ? NetworkImage(_profilePictureUrl)
+                    : AssetImage('assets/default_profile.png') as ImageProvider,
                 child: Align(
                   alignment: Alignment.bottomRight,
                   child: Container(
@@ -234,15 +226,9 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             SizedBox(height: 20),
-            Text(
-              _username,
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black),
-            ),
+            Text(_username, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
             SizedBox(height: 8),
-            Text(
-              '@$_pseudo',
-              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-            ),
+            Text('@$_pseudo', style: TextStyle(fontSize: 18, color: Colors.grey[600])),
             SizedBox(height: 36),
             _buildSettingOption(Icons.person, 'Change User Name', () {
               print('Change user name');
@@ -250,7 +236,7 @@ class _ProfilePageState extends State<ProfilePage> {
             _buildSettingOption(Icons.alternate_email, 'Change Pseudo', _changePseudo),
             SizedBox(height: 36),
             ElevatedButton(
-              onPressed: _signOut, // Call the sign-out method
+              onPressed: _signOut,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
