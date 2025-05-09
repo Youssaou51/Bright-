@@ -63,8 +63,17 @@ class _TasksPageState extends State<TasksPage> {
         task.dueDate.year == _selectedMonth.year).toList();
   }
 
-  int get _completedTasksCount {
-    return _filteredTasks.where((task) => task.isCompleted).length;
+  int get _completedTasksCount => _filteredTasks.where((task) => task.isCompleted).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    });
   }
 
   Future<void> _loadTasks() async {
@@ -76,7 +85,7 @@ class _TasksPageState extends State<TasksPage> {
       final response = await supabase
           .from('tasks')
           .select()
-          .eq('user_id', userId);
+          .select();
 
       if (response != null) {
         setState(() {
@@ -92,6 +101,47 @@ class _TasksPageState extends State<TasksPage> {
     }
   }
 
+  Future<void> _toggleTaskCompletion(Task task) async {
+    final wasCompleted = task.isCompleted;
+
+    setState(() {
+      task.isCompleted = !wasCompleted;
+    });
+
+    try {
+      await supabase
+          .from('tasks')
+          .update({'is_completed': task.isCompleted})
+          .eq('id', task.id);
+    } catch (e) {
+      setState(() {
+        task.isCompleted = wasCompleted;
+      });
+      print('Erreur : $e');
+      _showErrorSnackBar('Échec de la mise à jour.');
+    }
+  }
+
+
+  void _showErrorSnackBar(String message) {
+    final snackBar = SnackBar(
+      content: Text(message),
+      backgroundColor: Colors.red,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
+
+  Future<void> _deleteTask(Task task) async {
+    try {
+      await supabase.from('tasks').delete().eq('id', task.id);
+      setState(() {
+        _tasks.remove(task);
+      });
+    } catch (e) {
+      print('Erreur suppression : $e');
+    }
+  }
+
   Future<void> _addTaskDialog() async {
     String title = '';
     Priority priority = Priority.medium;
@@ -100,42 +150,31 @@ class _TasksPageState extends State<TasksPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 10,
           child: Container(
             padding: EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Add Task',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
+                Text('Add Task', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 SizedBox(height: 20),
                 TextField(
                   decoration: InputDecoration(
                     labelText: 'Title',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onChanged: (value) {
-                    title = value;
-                  },
+                  onChanged: (value) => title = value,
                 ),
                 SizedBox(height: 20),
                 DropdownButtonFormField<Priority>(
                   value: priority,
                   decoration: InputDecoration(
                     labelText: 'Priority',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onChanged: (Priority? newValue) {
-                    priority = newValue!;
+                    if (newValue != null) priority = newValue;
                   },
                   items: Priority.values.map((Priority value) {
                     return DropdownMenuItem<Priority>(
@@ -182,8 +221,7 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel',
-                          style: TextStyle(color: Colors.blue.shade900)),
+                      child: Text('Cancel', style: TextStyle(color: Colors.blue.shade900)),
                     ),
                   ],
                 ),
@@ -196,61 +234,7 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _selectMonth(DateTime month) {
-    setState(() {
-      _selectedMonth = month;
-    });
-  }
-
-  Future<void> _toggleTaskCompletion(Task task) async {
-    try {
-      // First update the local state immediately for responsive UI
-      setState(() {
-        task.isCompleted = !task.isCompleted;
-      });
-
-      // Then update the database
-      final response = await supabase
-          .from('tasks')
-          .update({'is_completed': task.isCompleted})
-          .eq('id', task.id)
-          .select();
-
-      if (response == null) {
-        // If update failed, revert the local state
-        setState(() {
-          task.isCompleted = !task.isCompleted;
-        });
-        print('Failed to update task status');
-      }
-    } catch (e) {
-      // If error occurred, revert the local state
-      setState(() {
-        task.isCompleted = !task.isCompleted;
-      });
-      print('Error updating task: $e');
-    }
-  }
-
-  Future<void> _deleteTask(Task task) async {
-    try {
-      await supabase.from('tasks').delete().eq('id', task.id);
-      setState(() {
-        _tasks.remove(task);
-      });
-    } catch (e) {
-      print('Error deleting task: $e');
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadTasks();
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text;
-      });
-    });
+    setState(() => _selectedMonth = month);
   }
 
   @override
@@ -324,8 +308,7 @@ class _TasksPageState extends State<TasksPage> {
                   children: [
                     Icon(Icons.assignment, size: 64, color: Colors.grey),
                     SizedBox(height: 16),
-                    Text('No tasks for this month.',
-                        style: TextStyle(fontSize: 18, color: Colors.grey)),
+                    Text('No tasks for this month.', style: TextStyle(fontSize: 18, color: Colors.grey)),
                   ],
                 ),
               )
@@ -388,7 +371,5 @@ class _TasksPageState extends State<TasksPage> {
 }
 
 extension CapitalizeString on String {
-  String capitalize() {
-    return isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
-  }
+  String capitalize() => isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }
