@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dashboard_page.dart';
-import 'user.dart' as local; // Alias for your local User class
+import 'user.dart' as local;
 
 class LoginPage extends StatefulWidget {
   @override
@@ -12,26 +12,26 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  final _formKey = GlobalKey<FormState>();
 
   Future<void> _signIn(BuildContext context) async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
       final user = response.user;
-
       if (user != null) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => DashboardPage(
               currentUser: local.User(
-                id: user.id, // Use the user ID from the response
+                id: user.id,
                 username: user.email ?? 'User',
                 pseudo: user.email ?? 'User',
                 imageUrl: "https://via.placeholder.com/150",
@@ -41,21 +41,24 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } on AuthException catch (e) {
-      String errorMessage = 'Error signing in: ${e.message}';
-      if (e.message.contains('invalid credentials')) {
-        errorMessage = 'Invalid email or password. Please try again.';
-      }
+      final isInvalid = e.message.toLowerCase().contains('invalid login');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
+        SnackBar(
+          content: Text(
+            isInvalid ? 'Invalid email or password.' : 'Auth Error: ${e.message}',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: $e')),
+        SnackBar(
+          content: Text('Unexpected error: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -65,107 +68,116 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.of(context).size.height,
-          ),
+          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height),
           child: IntrinsicHeight(
             child: Padding(
               padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Image.asset('assets/images/bright_future_foundation.jpg', height: 300),
-                  Text(
-                    'Welcome Back!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Image.asset('assets/images/bright_future_foundation.jpg', height: 200),
+                    const SizedBox(height: 30),
+                    Text(
+                      'Welcome Back!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 40),
-                  // Email Input
-                  TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Enter your email',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  // Password Input
-                  TextField(
-                    controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Enter your password',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    ),
-                    obscureText: true,
-                  ),
-                  SizedBox(height: 30),
-                  // Login Button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : () => _signIn(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 18),
-                      textStyle: TextStyle(fontSize: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 5,
-                    ),
-                    child: _isLoading
-                        ? CircularProgressIndicator(color: Colors.white)
-                        : Text('Login'),
-                  ),
-                  SizedBox(height: 20),
-                  // Forgot Password (Example)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        // Handle forgot password logic
-                        print("Forgot Password pressed");
+                    const SizedBox(height: 40),
+
+                    // Email
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _inputDecoration('Email', 'Enter your email'),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Email is required';
+                        if (!value.contains('@')) return 'Enter a valid email';
+                        return null;
                       },
-                      child: Text(
-                        'Forgot Password?',
-                        style: TextStyle(color: Colors.blue),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Password
+                    TextFormField(
+                      controller: _passwordController,
+                      decoration: _inputDecoration('Password', 'Enter your password'),
+                      obscureText: true,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Password is required';
+                        if (value.length < 6) return 'Minimum 6 characters';
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // Login Button
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : () => _signIn(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        textStyle: const TextStyle(fontSize: 20),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Login'),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Forgot Password
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Reset password feature coming soon!')),
+                          );
+                        },
+                        child: const Text('Forgot Password?', style: TextStyle(color: Colors.blue)),
                       ),
                     ),
-                  ),
-                  Spacer(), // Pushes content up to avoid overlap with bottom
-                ],
+
+                    const Spacer(),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label, String hint) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.blue),
+      ),
+      filled: true,
+      fillColor: Colors.grey.shade100,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
   }
 }

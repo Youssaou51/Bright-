@@ -33,9 +33,11 @@ class _CommentsPageState extends State<CommentsPage> {
     try {
       final response = await _supabase
           .from('comments')
-          .select()
+          .select('*, users(username, profile_picture)')
           .eq('post_id', widget.post.id)
           .order('created_at', ascending: true);
+
+      print('Commentaires reçus : $response');
 
       setState(() {
         comments = List<Map<String, dynamic>>.from(response);
@@ -46,6 +48,7 @@ class _CommentsPageState extends State<CommentsPage> {
       setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _addComment() async {
     final commentText = _commentController.text.trim();
@@ -59,17 +62,9 @@ class _CommentsPageState extends State<CommentsPage> {
       });
 
       _commentController.clear();
-      setState(() {
-        comments.add({
-          'post_id': widget.post.id,
-          'user_id': widget.currentUser.id,
-          'content': commentText,
-          'users': {
-            'username': widget.currentUser.username,
-            'profile_picture': widget.currentUser.imageUrl,
-          },
-        });
-      });
+
+      // Recharge les commentaires depuis la base, avec les données utilisateur
+      await _fetchComments();
     } catch (e) {
       print('Error adding comment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,6 +72,7 @@ class _CommentsPageState extends State<CommentsPage> {
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

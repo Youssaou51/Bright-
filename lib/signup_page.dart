@@ -18,26 +18,36 @@ class _SignupPageState extends State<SignupPage> {
     setState(() {
       _isLoading = true;
     });
+
     try {
       // Sign up with Supabase
       final response = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text,
-        password: _passwordController.text,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
       );
 
-      // Get the authenticated user
       final user = response.user;
 
       if (user != null) {
-        // Navigate to the dashboard after successful signup
+        final userId = user.id;
+        final supabase = Supabase.instance.client;
+
+        // Insert user into the custom 'users' table
+        await supabase.from('users').insert({
+          'id': userId,
+          'username': _usernameController.text.trim(),
+          'profile_picture': "https://via.placeholder.com/150",
+        });
+
+        // Navigate to Dashboard with custom user model
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => DashboardPage(
               currentUser: local.User(
-                id: user.id, // Use the user ID from the response
-                username: _usernameController.text,
-                pseudo: _usernameController.text,
+                id: userId,
+                username: _usernameController.text.trim(),
+                pseudo: _usernameController.text.trim(),
                 imageUrl: "https://via.placeholder.com/150",
               ),
             ),
@@ -83,7 +93,6 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                   SizedBox(height: 40),
-                  // Username Input
                   TextField(
                     controller: _usernameController,
                     decoration: InputDecoration(
@@ -103,7 +112,6 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                   SizedBox(height: 20),
-                  // Email Input
                   TextField(
                     controller: _emailController,
                     decoration: InputDecoration(
@@ -123,7 +131,6 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                   SizedBox(height: 20),
-                  // Password Input
                   TextField(
                     controller: _passwordController,
                     decoration: InputDecoration(
@@ -144,7 +151,6 @@ class _SignupPageState extends State<SignupPage> {
                     obscureText: true,
                   ),
                   SizedBox(height: 30),
-                  // Signup Button
                   ElevatedButton(
                     onPressed: _isLoading ? null : () => _signUp(context),
                     style: ElevatedButton.styleFrom(
@@ -162,10 +168,8 @@ class _SignupPageState extends State<SignupPage> {
                         : Text('Signup'),
                   ),
                   SizedBox(height: 20),
-                  // Terms and Conditions (Example)
                   TextButton(
                     onPressed: () {
-                      // Handle terms and conditions logic
                       print("Terms and Conditions pressed");
                     },
                     child: Text(
@@ -174,7 +178,7 @@ class _SignupPageState extends State<SignupPage> {
                       style: TextStyle(color: Colors.blue),
                     ),
                   ),
-                  Spacer(), // Pushes content up to avoid overlap with bottom
+                  Spacer(),
                 ],
               ),
             ),
