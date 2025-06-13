@@ -35,13 +35,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadInitialLikes() async {
-    final response = await _supabase
-        .from('likes')
-        .select('post_id')
-        .eq('user_id', widget.currentUser.id);
-    setState(() {
-      _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
-    });
+    try {
+      final response = await _supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', widget.currentUser.id);
+      print('Load initial likes response: $response');
+      setState(() {
+        _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
+      });
+    } catch (e) {
+      print('Error loading initial likes: $e');
+    }
   }
 
   Future<void> _toggleLike(Post post) async {
@@ -50,27 +55,52 @@ class _HomePageState extends State<HomePage> {
 
     try {
       if (isLiked) {
-        await _supabase.from('likes').delete()
+        await _supabase
+            .from('likes')
+            .delete()
             .eq('post_id', post.id)
             .eq('user_id', userId);
+        print('Delete like for post ${post.id} by user $userId');
         setState(() {
           _likedPostIds.remove(post.id);
-          post.likesCount--;
         });
       } else {
         await _supabase.from('likes').insert({
           'post_id': post.id,
           'user_id': userId,
         });
+        print('Insert like for post ${post.id} by user $userId');
         setState(() {
           _likedPostIds.add(post.id);
-          post.likesCount++;
         });
       }
+      // Délai pour propagation
+      await Future.delayed(const Duration(seconds: 1));
+      try {
+        await widget.refreshPosts();
+        print('refreshPosts called successfully');
+      } catch (e) {
+        print('Error refreshing posts: $e');
+      }
     } catch (e) {
+      print('Error toggling like for post ${post.id}: $e');
+      String errorMessage = 'Erreur lors du like/désaimage.';
+      if (e.toString().contains('violates row-level security policy')) {
+        errorMessage = 'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
+      } else if (e.toString().contains('foreign key constraint') || e.toString().contains('23503')) {
+        errorMessage = 'Erreur : Publication ou utilisateur non trouvé.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du like.')),
+        SnackBar(content: Text(errorMessage)),
       );
+      // Revenir à l'état initial
+      setState(() {
+        if (isLiked) {
+          _likedPostIds.add(post.id);
+        } else {
+          _likedPostIds.remove(post.id);
+        }
+      });
     }
   }
 
@@ -142,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.share_outlined),
-                  onPressed: () {}, // To implement
+                  onPressed: () {}, // À implémenter
                 ),
               ],
             ),
