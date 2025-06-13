@@ -1,11 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'reports_page.dart';
+import 'package:uuid/uuid.dart';
+
 import 'home_page.dart';
-import 'dart:io';
 import 'profile_page.dart';
+import 'reports_page.dart';
 import 'tasks_page.dart';
 import 'post.dart';
 import 'user.dart' as local;
@@ -16,54 +19,108 @@ class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key, required this.currentUser}) : super(key: key);
 
   @override
-  _DashboardPageState createState() => _DashboardPageState();
+  State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with SingleTickerProviderStateMixin {
+class _DashboardPageState extends State<DashboardPage>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
-  late AnimationController _animationController;
   late PageController _pageController;
   final ImagePicker _picker = ImagePicker();
-  List<Post> _posts = [];
   final SupabaseClient _supabase = Supabase.instance.client;
+  List<Post> _posts = [];
+  String _foundationAmount = "Chargement...";
+  Set<String> _likedPostIds = {};
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _loadPosts(); // Ajoutez cette ligne
+    _pageController = PageController();
+    _loadPosts();
+    _loadFoundationFunds();
+
   }
 
   Future<void> _loadPosts() async {
     try {
-      final response = await _supabase
+      final postsResponse = await _supabase
           .from('posts')
-          .select('*') // Get all columns
-          .order('timestamp', ascending: false); // Newest first
+          .select('*')
+          .order('timestamp', ascending: false);
 
-      if (mounted) {
-        setState(() {
-          _posts = response.map<Post>((post) => Post.fromJson(post)).toList();
-        });
-      }
+      final likesResponse = await _supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', widget.currentUser.id);
+
+      final likedPostIds = likesResponse
+          .map<String>((like) => like['post_id'] as String)
+          .toSet();
+
+      setState(() {
+        _posts = postsResponse.map<Post>((e) => Post.fromJson(e)).toList();
+        _likedPostIds = likedPostIds; // Ajoute ça comme variable dans le state
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading posts: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur de chargement des posts : $e')),
+      );
     }
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _animationController.dispose();
-    super.dispose();
+
+  Future<void> _loadFoundationFunds() async {
+    try {
+      final response = await _supabase
+          .from('funds')
+          .select('amount')
+          .eq('id', 'foundation-funds')
+          .single();
+      setState(() {
+        _foundationAmount = response['amount'].toString() + " €";
+      });
+    } catch (e) {
+      setState(() {
+        _foundationAmount = "Erreur";
+      });
+    }
+  }
+
+  Future<void> _editFoundationFunds() async {
+    TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Modifier les fonds"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(labelText: "Nouveau montant (€)"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final amount = double.tryParse(controller.text);
+              if (amount != null) {
+                await _supabase.from('funds').upsert({
+                  'id': 'foundation-funds',
+                  'amount': amount,
+                  'updated_by': widget.currentUser.username,
+                  'updated_at': DateTime.now().toIso8601String()
+                });
+                Navigator.pop(context);
+                _loadFoundationFunds();
+              }
+            },
+            child: Text("Enregistrer"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Annuler"),
+          )
+        ],
+      ),
+    );
   }
 
   void _onItemTapped(int index) {
@@ -71,127 +128,98 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       _showMediaSourceDialog();
     } else {
       _pageController.jumpToPage(index);
-      _animationController.forward().then((value) {
-        _animationController.reverse();
+      setState(() {
+        _selectedIndex = index;
       });
     }
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   void _showMediaSourceDialog() {
     showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Photo options
-              ListTile(
-                leading: Icon(Icons.camera, color: Colors.blue),
-                title: Text('Take a Photo'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  final pickedFile = await _picker.pickImage(source: ImageSource.camera);
-                  if (pickedFile != null) {
-                    _promptForCaption([File(pickedFile.path)], [], "New Photo Post");
-                  }
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.image, color: Colors.blue),
-                title: Text('Choose Photo from Gallery'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-                  if (pickedFile != null) {
-                    _promptForCaption([File(pickedFile.path)], [], "New Photo Post");
-                  }
-                },
-              ),
-              Divider(),
-              // Video options
-              ListTile(
-                leading: Icon(Icons.videocam, color: Colors.red),
-                title: Text('Record a Video'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  final pickedFile = await _picker.pickVideo(source: ImageSource.camera);
-                  if (pickedFile != null) {
-                    _promptForCaption([], [File(pickedFile.path)], "New Video Post");
-                  }
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.video_library, color: Colors.red),
-                title: Text('Choose Video from Gallery'),
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  final pickedFile = await _picker.pickVideo(source: ImageSource.gallery);
-                  if (pickedFile != null) {
-                    _promptForCaption([], [File(pickedFile.path)], "New Video Post");
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: Icon(Icons.camera_alt, color: Colors.blue),
+              title: Text('Prendre une photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickImage(source: ImageSource.camera);
+                if (file != null) {
+                  _promptForCaption([File(file.path)], [], 'Nouveau post photo');
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.image, color: Colors.green),
+              title: Text('Galerie photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickImage(source: ImageSource.gallery);
+                if (file != null) {
+                  _promptForCaption([File(file.path)], [], 'Nouveau post photo');
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.videocam, color: Colors.red),
+              title: Text('Enregistrer une vidéo'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickVideo(source: ImageSource.camera);
+                if (file != null) {
+                  _promptForCaption([], [File(file.path)], 'Nouveau post vidéo');
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.video_library, color: Colors.deepPurple),
+              title: Text('Vidéo depuis galerie'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickVideo(source: ImageSource.gallery);
+                if (file != null) {
+                  _promptForCaption([], [File(file.path)], 'Nouveau post vidéo');
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
+
   void _promptForCaption(List<File> images, List<File> videos, String defaultCaption) {
     String caption = defaultCaption;
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Add Caption'),
-          content: Container(
-            width: double.maxFinite,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (images.isNotEmpty)
-                  Image.file(images[0], fit: BoxFit.cover, width: double.maxFinite),
-                Positioned(
-                  bottom: 20,
-                  left: 16,
-                  right: 16,
-                  child: TextField(
-                    onChanged: (value) {
-                      caption = value;
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Enter caption...',
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          title: Text("Ajouter une légende"),
+          content: TextField(
+            onChanged: (value) => caption = value,
+            decoration: InputDecoration(
+              hintText: 'Saisir une légende...',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              filled: true,
+              fillColor: Colors.grey.shade100,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
+                Navigator.pop(context);
                 _addPost(images, videos, caption);
               },
-              child: Text('Submit'),
+              child: Text("Publier"),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Cancel'),
-            ),
+              onPressed: () => Navigator.pop(context),
+              child: Text("Annuler"),
+            )
           ],
         );
       },
@@ -200,110 +228,102 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
   Future<void> _addPost(List<File> images, List<File> videos, String caption) async {
     try {
-      final postId = DateTime.now().millisecondsSinceEpoch.toString();
+      final postId = Uuid().v4();
       List<String> imageUrls = [];
       List<String> videoUrls = [];
 
-      // Upload images
-      if (images.isNotEmpty) {
-        for (var image in images) {
-          final imagePath = 'posts/images/$postId-${image.path.split('/').last}';
-          await _supabase.storage.from('posts').upload(imagePath, image);
-          final imageUrl = _supabase.storage.from('posts').getPublicUrl(imagePath);
-          imageUrls.add(imageUrl);
-        }
+      for (var image in images) {
+        final path = 'posts/images/$postId-${image.path.split('/').last}';
+        await _supabase.storage.from('posts').upload(path, image);
+        imageUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
 
-      // Upload videos
-      if (videos.isNotEmpty) {
-        for (var video in videos) {
-          final videoPath = 'posts/videos/$postId-${video.path.split('/').last}';
-          await _supabase.storage.from('posts').upload(videoPath, video);
-          final videoUrl = _supabase.storage.from('posts').getPublicUrl(videoPath);
-          videoUrls.add(videoUrl);
-        }
+      for (var video in videos) {
+        final path = 'posts/videos/$postId-${video.path.split('/').last}';
+        await _supabase.storage.from('posts').upload(path, video);
+        videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
 
-      // Construct the profile picture URL based on the username
-      final profilePictureUrl = _supabase.storage.from('profiles').getPublicUrl('${widget.currentUser.username}_profile.jpg');
+      final profilePictureUrl = _supabase.storage
+          .from('profiles')
+          .getPublicUrl('${widget.currentUser.username}_profile.jpg');
 
-      // Insert into database
-      await _supabase.from('posts').insert({
+      final post = {
         'id': postId,
         'user_id': widget.currentUser.id,
         'username': widget.currentUser.username,
-        'profile_picture': profilePictureUrl, // Use constructed profile picture URL
+        'profile_picture': profilePictureUrl,
         'caption': caption,
         'likes_count': 0,
-        'image_urls': imageUrls.isNotEmpty ? imageUrls : null,
-        'video_urls': videoUrls.isNotEmpty ? videoUrls : null,
+        'image_urls': imageUrls,
+        'video_urls': videoUrls,
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
 
-      // Update UI
-      if (mounted) {
-        setState(() {
-          _posts.insert(0, Post(
-            id: postId,
-            userId: widget.currentUser.id,
-            username: widget.currentUser.username,
-            profilePicture: profilePictureUrl, // Use constructed profile picture URL
-            caption: caption,
-            images: imageUrls,
-            videos: videoUrls,
-            likedBy: [],
-            likesCount: 0,
-            comments: [],
-            timestamp: DateTime.now(),
-          ));
-        });
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post created successfully!')),
-      );
+      await _supabase.from('posts').insert(post);
+      _loadPosts();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Post publié !")));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-      debugPrint('Error creating post: $e');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur : $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFF5F8FA),
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // App Bar
           Container(
-            padding: EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blueAccent, Colors.lightBlueAccent],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Bright Future Foundation',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Bright Future Foundation',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    Icon(Icons.notifications_none, color: Colors.white)
+                  ],
                 ),
-                IconButton(
-                  icon: Icon(Icons.notifications, color: Colors.black54),
-                  onPressed: () {
-                    // Handle notifications
-                  },
+                SizedBox(height: 8),
+                GestureDetector(
+                  onTap: widget.currentUser.role == 'admin' ? _editFoundationFunds : null,
+                  child: SizedBox(
+                    height: 24,
+                    child: Marquee(
+                      text: '💰 Fonds disponibles : $_foundationAmount',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      scrollAxis: Axis.horizontal,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      blankSpace: 20.0,
+                      velocity: 50.0,
+                      pauseAfterRound: Duration(seconds: 1),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          // PageView for the content
           Expanded(
             child: PageView(
               controller: _pageController,
               physics: NeverScrollableScrollPhysics(),
-              children: <Widget>[
-                HomePage(posts: _posts, currentUser: widget.currentUser,refreshPosts: _loadPosts ),
+              children: [
+                HomePage(posts: _posts, currentUser: widget.currentUser,likedPostIds: _likedPostIds, refreshPosts: _loadPosts),
                 ReportsPage(),
-                Container(), // Placeholder for the media icon action
+                Container(),
                 TasksPage(),
                 ProfilePage(currentUser: widget.currentUser),
               ],
@@ -311,20 +331,23 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: [
-          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.fileAlt), label: 'Reports'),
-          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.image), label: 'Media'),
-          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.tasks), label: 'Tasks'),
-          BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.user), label: 'Profile'),
-        ],
+      bottomNavigationBar: ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey.shade600,
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          items: const [
+            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.home), label: "Home"),
+            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.fileAlt), label: "Reports"),
+            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.plusSquare), label: "Media"),
+            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.tasks), label: "Tasks"),
+            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.user), label: "Profile"),
+          ],
+        ),
       ),
     );
   }

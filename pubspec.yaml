@@ -50,6 +50,7 @@ dependencies:
   uuid: ^4.0.0
   month_picker_dialog: ^6.0.3
   url_launcher: ^6.3.1
+  marquee: ^2.3.0
 
 
 

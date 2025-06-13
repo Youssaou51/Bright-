@@ -84,7 +84,6 @@ class _TasksPageState extends State<TasksPage> {
     try {
       final response = await supabase
           .from('tasks')
-          .select()
           .select();
 
       if (response != null) {
@@ -240,17 +239,20 @@ class _TasksPageState extends State<TasksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          'Tasks',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Tasks', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

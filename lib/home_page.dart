@@ -8,11 +8,13 @@ class HomePage extends StatefulWidget {
   final List<Post> posts;
   final AppUser.User currentUser;
   final Future<void> Function() refreshPosts;
+  final Set<String> likedPostIds;
 
   const HomePage({
     Key? key,
     required this.posts,
     required this.currentUser,
+    required this.likedPostIds,
     required this.refreshPosts,
   }) : super(key: key);
 
@@ -27,63 +29,48 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _supabase = Supabase.instance.client; // Initialize the Supabase client
-    _likedPostIds = {};
+    _supabase = Supabase.instance.client;
+    _likedPostIds = Set.from(widget.likedPostIds);
     _loadInitialLikes();
   }
 
   Future<void> _loadInitialLikes() async {
-    try {
-      final response = await _supabase
-          .from('posts')
-          .select('id, liked_by')
-          .not('liked_by', 'is', null);
-
-      if (response != null) {
-        setState(() {
-          _likedPostIds.addAll(
-            response.where((post) {
-              final likedByStr = post['liked_by'] as String? ?? '';
-              return likedByStr.contains(widget.currentUser.id);
-            }).map((post) => post['id'].toString()),
-          );
-        });
-      }
-    } catch (e) {
-      print('Error loading initial likes: $e');
-    }
+    final response = await _supabase
+        .from('likes')
+        .select('post_id')
+        .eq('user_id', widget.currentUser.id);
+    setState(() {
+      _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
+    });
   }
 
   Future<void> _toggleLike(Post post) async {
+    final userId = widget.currentUser.id;
     final isLiked = _likedPostIds.contains(post.id);
-    if (isLiked) return;
-
-    final newLikesCount = post.likesCount + 1;
-    final newLikedBy = '${post.likedBy.join(',')}${post.likedBy.isNotEmpty ? ',' : ''}${widget.currentUser.id}';
-
-    // Optimistic update
-    setState(() {
-      _likedPostIds.add(post.id);
-      post.likesCount = newLikesCount;
-      post.likedBy.add(widget.currentUser.id);
-    });
 
     try {
-      await _supabase
-          .from('posts')
-          .update({
-        'likes_count': newLikesCount,
-        'liked_by': newLikedBy,
-      })
-          .eq('id', post.id);
+      if (isLiked) {
+        await _supabase.from('likes').delete()
+            .eq('post_id', post.id)
+            .eq('user_id', userId);
+        setState(() {
+          _likedPostIds.remove(post.id);
+          post.likesCount--;
+        });
+      } else {
+        await _supabase.from('likes').insert({
+          'post_id': post.id,
+          'user_id': userId,
+        });
+        setState(() {
+          _likedPostIds.add(post.id);
+          post.likesCount++;
+        });
+      }
     } catch (e) {
-      // Revert on error
-      setState(() {
-        _likedPostIds.remove(post.id);
-        post.likesCount--;
-        post.likedBy.remove(widget.currentUser.id);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to like post. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors du like.')),
+      );
     }
   }
 
@@ -91,6 +78,7 @@ class _HomePageState extends State<HomePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
     );
   }
@@ -100,38 +88,62 @@ class _HomePageState extends State<HomePage> {
     final hasImages = post.images.isNotEmpty;
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      elevation: 2.0,
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 4,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ListTile(
-            leading: CircleAvatar(backgroundImage: NetworkImage(post.profilePicture)),
-            title: Text(post.username, style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(_formatDate(post.timestamp), style: TextStyle(color: Colors.grey)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+            leading: CircleAvatar(
+              backgroundImage: NetworkImage(post.profilePicture),
+              radius: 24,
+            ),
+            title: Text(post.username, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(_formatDate(post.timestamp), style: TextStyle(color: Colors.grey.shade600)),
           ),
           if (hasImages)
-            SizedBox(
-              height: 300,
-              child: PageView.builder(
-                itemCount: post.images.length,
-                itemBuilder: (context, index) => Image.network(post.images[index], fit: BoxFit.cover, width: double.infinity),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                height: 280,
+                child: PageView.builder(
+                  itemCount: post.images.length,
+                  itemBuilder: (context, index) => Image.network(
+                    post.images[index],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                  ),
+                ),
               ),
             ),
-          Padding(padding: EdgeInsets.all(12.0), child: Text(post.caption)),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+            child: Text(post.caption, style: const TextStyle(fontSize: 16)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.red : Colors.black),
+                  icon: Icon(
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    color: isLiked ? Colors.redAccent : Colors.grey.shade800,
+                  ),
                   onPressed: () => _toggleLike(post),
                 ),
                 Text(post.likesCount.toString()),
-                SizedBox(width: 16),
-                IconButton(icon: Icon(Icons.comment), onPressed: () => _showCommentsPage(post)),
-                Spacer(),
-                IconButton(icon: Icon(Icons.share), onPressed: () {},), // Implement share functionality
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(Icons.comment_outlined),
+                  onPressed: () => _showCommentsPage(post),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.share_outlined),
+                  onPressed: () {}, // To implement
+                ),
               ],
             ),
           ),
@@ -151,7 +163,8 @@ class _HomePageState extends State<HomePage> {
     return RefreshIndicator(
       onRefresh: widget.refreshPosts,
       child: ListView.builder(
-        padding: EdgeInsets.symmetric(vertical: 8.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         itemCount: sortedPosts.length,
         itemBuilder: (context, index) => _buildPostItem(sortedPosts[index]),
       ),

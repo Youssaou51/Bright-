@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'foundation_amount_widget.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -20,7 +20,7 @@ class _ReportsPageState extends State<ReportsPage> {
   bool isDeleting = false;
   int? deletingIndex;
 
-  DateTime selectedDate = DateTime.now(); // To hold selected month and year
+  DateTime selectedDate = DateTime.now();
 
   @override
   void initState() {
@@ -32,17 +32,19 @@ class _ReportsPageState extends State<ReportsPage> {
     try {
       setState(() => isLoading = true);
 
-      // Fetch reports filtered by month and year
+      final startDate = DateTime(selectedDate.year, selectedDate.month, 1);
+      final endDate = DateTime(selectedDate.year, selectedDate.month + 1, 1);
+
       final response = await _supabase
           .from('reports')
           .select('*')
-          .gte('created_at', DateTime(selectedDate.year, selectedDate.month, 1).toIso8601String())
-          .lt('created_at', DateTime(selectedDate.year, selectedDate.month + 1, 1).toIso8601String())
-          .order('created_at', ascending: false); // Order by date created
+          .gte('created_at', startDate.toIso8601String())
+          .lt('created_at', endDate.toIso8601String())
+          .order('created_at', ascending: false);
 
       setState(() => reports = List<Map<String, dynamic>>.from(response));
     } catch (e) {
-      _showError('Error loading reports: ${e.toString()}');
+      _showError('Oops! Failed to load reports: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -61,20 +63,13 @@ class _ReportsPageState extends State<ReportsPage> {
         final file = result.files.single;
         final userId = _supabase.auth.currentUser?.id;
 
-        if (userId == null) {
-          throw Exception('User not authenticated');
-        }
+        if (userId == null) throw Exception('User not authenticated');
 
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final filePath = 'report_${timestamp}_${file.name.replaceAll(' ', '_')}';
 
-        await _supabase.storage
-            .from('reports')
-            .upload(filePath, File(file.path!));
-
-        final fileUrl = _supabase.storage
-            .from('reports')
-            .getPublicUrl(filePath);
+        await _supabase.storage.from('reports').upload(filePath, File(file.path!));
+        final fileUrl = _supabase.storage.from('reports').getPublicUrl(filePath);
 
         await _supabase.from('reports').insert({
           'name': file.name,
@@ -85,11 +80,10 @@ class _ReportsPageState extends State<ReportsPage> {
         });
 
         await _fetchReports();
-        _showSuccess('${file.name} uploaded successfully');
+        _showSuccess('🚀 ${file.name} uploaded successfully!');
       }
     } catch (e) {
-      _showError('Upload failed: ${e.toString()}');
-      debugPrint('Upload error details: $e');
+      _showError('Upload failed: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -106,9 +100,9 @@ class _ReportsPageState extends State<ReportsPage> {
       await _supabase.from('reports').delete().eq('id', id);
 
       await _fetchReports();
-      _showSuccess('Report deleted successfully');
+      _showSuccess('🗑️ Report deleted successfully');
     } catch (e) {
-      _showError('Delete failed: ${e.toString()}');
+      _showError('Delete failed: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -125,10 +119,9 @@ class _ReportsPageState extends State<ReportsPage> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red[400],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          backgroundColor: Colors.red.shade600,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         ),
       );
     }
@@ -140,18 +133,16 @@ class _ReportsPageState extends State<ReportsPage> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.green[400],
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          backgroundColor: Colors.green.shade600,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         ),
       );
     }
   }
 
-  // Open month/year picker dialog
   Future<void> _selectDate() async {
-    final DateTime? pickedDate = await showMonthPicker(
+    final pickedDate = await showMonthPicker(
       context: context,
       initialDate: selectedDate,
       firstDate: DateTime(2020),
@@ -159,51 +150,72 @@ class _ReportsPageState extends State<ReportsPage> {
     );
 
     if (pickedDate != null && pickedDate != selectedDate) {
-      setState(() {
-        selectedDate = pickedDate;
-      });
-      await _fetchReports(); // Refresh reports after date selection
+      setState(() => selectedDate = pickedDate);
+      await _fetchReports();
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = Colors.blue.shade700;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Reports',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 24,
-          ),
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black,
+        foregroundColor: Colors.black87,
         automaticallyImplyLeading: false,
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _uploadReport,
-        backgroundColor: Colors.blue[600],
-        child: const Icon(Icons.add, size: 28),
+        label: const Text('Upload'),
+        icon: const Icon(Icons.upload_file),
+        backgroundColor: primaryColor,
+        elevation: 6,
+        hoverElevation: 12,
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: GestureDetector(
-              onTap: _selectDate,
+          GestureDetector(
+            onTap: _selectDate,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Row(
+
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Icon(Icons.calendar_today, color: primaryColor),
+                  // FoundationAmountWidget(),
+                  const SizedBox(width: 12),
                   Text(
-                    'Selected: ${selectedDate.month}/${selectedDate.year}',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    '${_monthName(selectedDate.month)} ${selectedDate.year}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: primaryColor,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.date_range, color: Colors.blue[600]),
+                  const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
                 ],
               ),
             ),
@@ -213,93 +225,48 @@ class _ReportsPageState extends State<ReportsPage> {
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
               onRefresh: _fetchReports,
-              color: Colors.blue[600],
+              color: primaryColor,
               child: reports.isEmpty
                   ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.folder_open,
-                      size: 60,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No reports for this date',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey[600],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.folder_open,
+                        size: 80,
+                        color: Colors.grey.shade400,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      Text(
+                        'No reports found for this month.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               )
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 itemCount: reports.length,
                 itemBuilder: (context, index) {
                   final report = reports[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 6),
-                    child: Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        leading: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.insert_drive_file,
-                            size: 28,
-                            color: Colors.blue[600],
-                          ),
-                        ),
-                        title: Text(
-                          report['name'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        trailing: isDeleting && deletingIndex == index
-                            ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                            : IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: Colors.red[400],
-                          ),
-                          onPressed: () => _deleteReport(
-                            report['id'],
-                            report['file_path'],
-                            index,
-                          ),
-                        ),
-                        onTap: () async {
-                          final url = report['file_url'];
-                          if (url != null && await canLaunchUrl(Uri.parse(url))) {
-                            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-                          } else {
-                            _showError('Could not open the report.');
-                          }
-                        },
-
-                      ),
-                    ),
+                  return _ReportCard(
+                    report: report,
+                    isDeleting: isDeleting && deletingIndex == index,
+                    onDelete: () => _deleteReport(report['id'], report['file_path'], index),
+                    onOpen: () async {
+                      final url = report['file_url'];
+                      if (url != null && await canLaunchUrl(Uri.parse(url))) {
+                        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      } else {
+                        _showError('Could not open the report.');
+                      }
+                    },
                   );
                 },
               ),
@@ -309,5 +276,82 @@ class _ReportsPageState extends State<ReportsPage> {
       ),
     );
   }
+
+  String _monthName(int month) {
+    const months = [
+      '', // padding to make months 1-based
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    return months[month];
+  }
 }
-//end
+
+class _ReportCard extends StatelessWidget {
+  final Map<String, dynamic> report;
+  final bool isDeleting;
+  final VoidCallback onDelete;
+  final VoidCallback onOpen;
+
+  const _ReportCard({
+    Key? key,
+    required this.report,
+    required this.isDeleting,
+    required this.onDelete,
+    required this.onOpen,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Colors.blue.shade700;
+    return Card(
+      elevation: 6,
+      shadowColor: primaryColor.withOpacity(0.25),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListTile(
+        onTap: onOpen,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        leading: Container(
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Icon(
+            Icons.insert_drive_file,
+            color: primaryColor,
+            size: 32,
+          ),
+        ),
+        title: Text(
+          report['name'],
+          style: const TextStyle(fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: isDeleting
+            ? const SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        )
+            : IconButton(
+          icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+          onPressed: onDelete,
+          splashRadius: 24,
+          tooltip: 'Delete report',
+        ),
+      ),
+    );
+  }
+}

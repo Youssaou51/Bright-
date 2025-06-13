@@ -1,5 +1,5 @@
 class Comment {
-  final String id;
+  final int id;
   final String postId;
   final String userId;
   final String content;
