@@ -51,6 +51,10 @@ dependencies:
   month_picker_dialog: ^6.0.3
   url_launcher: ^6.3.1
   marquee: ^2.3.0
+  google_fonts: ^6.0.0
+  timeago: ^3.7.0
+  photo_view: ^0.15.0
+  share_plus: ^10.0.0
 
 
 

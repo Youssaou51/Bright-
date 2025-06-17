@@ -2,16 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
-
+import 'package:google_fonts/google_fonts.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
 import 'reports_page.dart';
 import 'tasks_page.dart';
 import 'post.dart';
 import 'user.dart' as local;
+import 'foundation_amount_widget.dart';
 
 class DashboardPage extends StatefulWidget {
   final local.User currentUser;
@@ -22,105 +22,78 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage>
-    with SingleTickerProviderStateMixin {
+class _DashboardPageState extends State<DashboardPage> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late PageController _pageController;
   final ImagePicker _picker = ImagePicker();
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Post> _posts = [];
-  String _foundationAmount = "Chargement...";
   Set<String> _likedPostIds = {};
+  double _currentAmount = 0.0;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    print('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
+    print('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
     _loadPosts();
-    _loadFoundationFunds();
-
   }
 
   Future<void> _loadPosts() async {
     try {
+      print('Début du chargement des posts');
       final postsResponse = await _supabase
           .from('posts')
-          .select('*')
-          .order('timestamp', ascending: false);
+          .select('''
+          id, user_id, username, profile_picture, caption, image_urls, likes_count, timestamp,
+          comment_count:comments(count)
+        ''')
+          .order('timestamp', ascending: false)
+          .timeout(const Duration(seconds: 5));
+
+      print('Posts response: $postsResponse');
 
       final likesResponse = await _supabase
           .from('likes')
           .select('post_id')
-          .eq('user_id', widget.currentUser.id);
+          .eq('user_id', widget.currentUser.id)
+          .timeout(const Duration(seconds: 5));
+
+      print('Likes response: $likesResponse');
 
       final likedPostIds = likesResponse
           .map<String>((like) => like['post_id'] as String)
           .toSet();
 
       setState(() {
-        _posts = postsResponse.map<Post>((e) => Post.fromJson(e)).toList();
-        _likedPostIds = likedPostIds; // Ajoute ça comme variable dans le state
+        _posts = postsResponse.map<Post>((e) {
+          final postJson = Map<String, dynamic>.from(e);
+          final commentCountList = e['comment_count'] as List<dynamic>?;
+          postJson['comment_count'] = commentCountList != null && commentCountList.isNotEmpty
+              ? (commentCountList[0] as Map<String, dynamic>)['count'] as int
+              : 0;
+          return Post.fromJson(postJson);
+        }).toList();
+        _likedPostIds = likedPostIds;
+        print('Nombre de posts chargés : ${_posts.length}');
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('Erreur lors du chargement des posts : $e');
+      print('Stack trace: $stackTrace');
+      String errorMessage = 'Erreur de chargement des posts';
+      if (e is SocketException) {
+        errorMessage = 'Problème de connexion réseau. Vérifiez votre internet.';
+      } else if (e.toString().contains('timeout')) {
+        errorMessage = 'Délai de connexion dépassé. Serveur indisponible.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur de chargement des posts : $e')),
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
-  }
-
-
-  Future<void> _loadFoundationFunds() async {
-    try {
-      final response = await _supabase
-          .from('funds')
-          .select('amount')
-          .eq('id', 'foundation-funds')
-          .single();
-      setState(() {
-        _foundationAmount = response['amount'].toString() + " €";
-      });
-    } catch (e) {
-      setState(() {
-        _foundationAmount = "Erreur";
-      });
-    }
-  }
-
-  Future<void> _editFoundationFunds() async {
-    TextEditingController controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Modifier les fonds"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: "Nouveau montant (€)"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final amount = double.tryParse(controller.text);
-              if (amount != null) {
-                await _supabase.from('funds').upsert({
-                  'id': 'foundation-funds',
-                  'amount': amount,
-                  'updated_by': widget.currentUser.username,
-                  'updated_at': DateTime.now().toIso8601String()
-                });
-                Navigator.pop(context);
-                _loadFoundationFunds();
-              }
-            },
-            child: Text("Enregistrer"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Annuler"),
-          )
-        ],
-      ),
-    );
   }
 
   void _onItemTapped(int index) {
@@ -138,13 +111,25 @@ class _DashboardPageState extends State<DashboardPage>
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
       builder: (_) => Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Wrap(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             ListTile(
-              leading: Icon(Icons.camera_alt, color: Colors.blue),
-              title: Text('Prendre une photo'),
+              leading: Icon(Icons.camera_alt, color: Colors.blueAccent),
+              title: Text('Prendre une photo', style: GoogleFonts.poppins()),
               onTap: () async {
                 Navigator.pop(context);
                 final file = await _picker.pickImage(source: ImageSource.camera);
@@ -154,8 +139,8 @@ class _DashboardPageState extends State<DashboardPage>
               },
             ),
             ListTile(
-              leading: Icon(Icons.image, color: Colors.green),
-              title: Text('Galerie photo'),
+              leading: Icon(Icons.image, color: Colors.teal),
+              title: Text('Galerie photo', style: GoogleFonts.poppins()),
               onTap: () async {
                 Navigator.pop(context);
                 final file = await _picker.pickImage(source: ImageSource.gallery);
@@ -165,8 +150,8 @@ class _DashboardPageState extends State<DashboardPage>
               },
             ),
             ListTile(
-              leading: Icon(Icons.videocam, color: Colors.red),
-              title: Text('Enregistrer une vidéo'),
+              leading: Icon(Icons.videocam, color: Colors.redAccent),
+              title: Text('Enregistrer une vidéo', style: GoogleFonts.poppins()),
               onTap: () async {
                 Navigator.pop(context);
                 final file = await _picker.pickVideo(source: ImageSource.camera);
@@ -177,7 +162,7 @@ class _DashboardPageState extends State<DashboardPage>
             ),
             ListTile(
               leading: Icon(Icons.video_library, color: Colors.deepPurple),
-              title: Text('Vidéo depuis galerie'),
+              title: Text('Vidéo depuis galerie', style: GoogleFonts.poppins()),
               onTap: () async {
                 Navigator.pop(context);
                 final file = await _picker.pickVideo(source: ImageSource.gallery);
@@ -196,33 +181,85 @@ class _DashboardPageState extends State<DashboardPage>
     String caption = defaultCaption;
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Ajouter une légende"),
-          content: TextField(
-            onChanged: (value) => caption = value,
-            decoration: InputDecoration(
-              hintText: 'Saisir une légende...',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              filled: true,
-              fillColor: Colors.grey.shade100,
-            ),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: Offset(0, 5),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _addPost(images, videos, caption);
-              },
-              child: Text("Publier"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Annuler"),
-            )
-          ],
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Ajouter une légende",
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 16),
+              TextField(
+                onChanged: (value) => caption = value,
+                decoration: InputDecoration(
+                  hintText: 'Saisir une légende...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                style: GoogleFonts.poppins(),
+                maxLines: 3,
+              ),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      "Annuler",
+                      style: GoogleFonts.poppins(color: Colors.grey[600]),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _addPost(images, videos, caption);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: Text(
+                      "Publier",
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -261,91 +298,336 @@ class _DashboardPageState extends State<DashboardPage>
       };
 
       await _supabase.from('posts').insert(post);
-      _loadPosts();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Post publié !")));
+      await _loadPosts();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Post publié !', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.teal,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erreur : $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur : $e', style: GoogleFonts.poppins()),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     }
+  }
+
+  void _showUpdateFundsDialog() {
+    final _controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Modifier le montant de la fondation',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: _controller,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: 'Nouveau montant (€)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                style: GoogleFonts.poppins(),
+              ),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      print('Update funds dialog cancelled');
+                      Navigator.pop(dialogContext);
+                    },
+                    child: Text(
+                      'Annuler',
+                      style: GoogleFonts.poppins(color: Colors.grey[600]),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final enteredAmount = double.tryParse(_controller.text);
+                      if (enteredAmount != null && enteredAmount >= 0) {
+                        print('Updating funds to $enteredAmount');
+                        try {
+                          final response = await _supabase.from('funds').upsert({
+                            'id': 'foundation-funds',
+                            'amount': enteredAmount,
+                            'updated_by': widget.currentUser.username,
+                            'updated_at': DateTime.now().toIso8601String(),
+                          });
+                          print('Update funds response: $response');
+                          setState(() {
+                            _currentAmount = enteredAmount;
+                          });
+                          Navigator.pop(dialogContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Montant mis à jour avec succès !',
+                                  style: GoogleFonts.poppins()),
+                              backgroundColor: Colors.teal,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        } catch (error) {
+                          print('Error updating funds: $error');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Erreur mise à jour : $error',
+                                  style: GoogleFonts.poppins()),
+                              backgroundColor: Colors.redAccent,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        }
+                      } else {
+                        print('Invalid amount entered');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Veuillez entrer un montant valide',
+                                style: GoogleFonts.poppins()),
+                            backgroundColor: Colors.redAccent,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: Text(
+                      'Mettre à jour',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).catchError((error) {
+      print('Error showing update funds dialog: $error');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF5F8FA),
-      body: Column(
+      backgroundColor: Colors.grey[100],
+      body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.blueAccent, Colors.lightBlueAccent],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Bright Future Foundation',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    Icon(Icons.notifications_none, color: Colors.white)
-                  ],
+          // Background Gradient
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.of(context).size.height * 0.3,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blueAccent, Colors.teal],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                SizedBox(height: 8),
-                GestureDetector(
-                  onTap: widget.currentUser.role == 'admin' ? _editFoundationFunds : null,
-                  child: SizedBox(
-                    height: 24,
-                    child: Marquee(
-                      text: '💰 Fonds disponibles : $_foundationAmount',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      scrollAxis: Axis.horizontal,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      blankSpace: 20.0,
-                      velocity: 50.0,
-                      pauseAfterRound: Duration(seconds: 1),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                // Custom Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 32),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Bright Future Foundation',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20, // Reduced size for better fit
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.white, size: 28),
+                          onPressed: _showUpdateFundsDialog,
+                          tooltip: 'Modifier le montant des fonds',
+                          constraints: BoxConstraints(minWidth: 48, minHeight: 48),
+                        ),
+                      ],
                     ),
+                  ),
+                ),
+                // Header with FoundationAmountWidget
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: FoundationAmountWidget(
+                    supabase: _supabase,
+                    initialAmount: _currentAmount,
+                    onAmountUpdated: (amount) {
+                      print('Amount updated: $amount');
+                      setState(() {
+                        _currentAmount = amount;
+                      });
+                    },
+                  ),
+                ),
+                SizedBox(height: 16),
+                // PageView Content
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: NeverScrollableScrollPhysics(),
+                    children: [
+                      HomePage(
+                        posts: _posts,
+                        currentUser: widget.currentUser,
+                        likedPostIds: _likedPostIds,
+                        refreshPosts: _loadPosts,
+                      ),
+                      ReportsPage(),
+                      Container(), // Placeholder for Media page
+                      TasksPage(),
+                      ProfilePage(currentUser: widget.currentUser),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: NeverScrollableScrollPhysics(),
-              children: [
-                HomePage(posts: _posts, currentUser: widget.currentUser,likedPostIds: _likedPostIds, refreshPosts: _loadPosts),
-                ReportsPage(),
-                Container(),
-                TasksPage(),
-                ProfilePage(currentUser: widget.currentUser),
-              ],
-            ),
-          ),
         ],
       ),
-      bottomNavigationBar: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: Offset(0, -5),
+            ),
+          ],
+        ),
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey.shade600,
+          backgroundColor: Colors.transparent,
+          selectedItemColor: Colors.blueAccent,
+          unselectedItemColor: Colors.grey[500],
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.home), label: "Home"),
-            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.fileAlt), label: "Reports"),
-            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.plusSquare), label: "Media"),
-            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.tasks), label: "Tasks"),
-            BottomNavigationBarItem(icon: FaIcon(FontAwesomeIcons.user), label: "Profile"),
+          selectedLabelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: GoogleFonts.poppins(fontSize: 12),
+          elevation: 0,
+          items: [
+            BottomNavigationBarItem(
+              icon: AnimatedScale(
+                scale: _selectedIndex == 0 ? 1.2 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: FaIcon(FontAwesomeIcons.home),
+              ),
+              label: "Home",
+            ),
+            BottomNavigationBarItem(
+              icon: AnimatedScale(
+                scale: _selectedIndex == 1 ? 1.2 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: FaIcon(FontAwesomeIcons.fileAlt),
+              ),
+              label: "Reports",
+            ),
+            BottomNavigationBarItem(
+              icon: AnimatedScale(
+                scale: _selectedIndex == 2 ? 1.2 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: FaIcon(FontAwesomeIcons.plusSquare),
+              ),
+              label: "Media",
+            ),
+            BottomNavigationBarItem(
+              icon: AnimatedScale(
+                scale: _selectedIndex == 3 ? 1.2 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: FaIcon(FontAwesomeIcons.tasks),
+              ),
+              label: "Tasks",
+            ),
+            BottomNavigationBarItem(
+              icon: AnimatedScale(
+                scale: _selectedIndex == 4 ? 1.2 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: FaIcon(FontAwesomeIcons.user),
+              ),
+              label: "Profile",
+            ),
           ],
         ),
       ),

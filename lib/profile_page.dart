@@ -7,41 +7,73 @@ import 'user.dart' as localUser;
 class ProfilePage extends StatefulWidget {
   final localUser.User? currentUser;
 
-  ProfilePage({this.currentUser});
+  const ProfilePage({Key? key, this.currentUser}) : super(key: key);
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStateMixin {
   late String _username;
   late String _pseudo;
-  late String _profilePictureUrl;
+  late String? _profilePictureUrl;
   final ImagePicker _picker = ImagePicker();
   final SupabaseClient _supabase = Supabase.instance.client;
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _username = widget.currentUser?.username ?? '';
+    _username = widget.currentUser?.username ?? 'Utilisateur';
     _pseudo = widget.currentUser?.pseudo ?? '';
-    _profilePictureUrl = widget.currentUser?.imageUrl ?? '';
+    _profilePictureUrl = widget.currentUser?.imageUrl;
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final response = await _supabase
+          .from('users')
+          .select('username, pseudo, profile_picture')
+          .eq('id', widget.currentUser!.id)
+          .single();
+      setState(() {
+        _username = response['username'] as String? ?? _username;
+        _pseudo = response['pseudo'] as String? ?? _pseudo;
+        _profilePictureUrl = response['profile_picture'] as String?;
+      });
+    } catch (e) {
+      print('Error loading profile: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur de chargement du profil : $e'), backgroundColor: Colors.redAccent),
+      );
+    }
   }
 
   Future<void> _changeProfilePicture() async {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      backgroundColor: Colors.white,
       builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Wrap(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.photo_library),
-                title: Text("Choose from Gallery"),
+                leading: const Icon(Icons.photo_library, color: Colors.blue),
+                title: const Text('Choisir dans la galerie', style: TextStyle(fontFamily: 'Roboto')),
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -51,8 +83,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.camera_alt),
-                title: Text("Take a Picture"),
+                leading: const Icon(Icons.camera_alt, color: Colors.blue),
+                title: const Text('Prendre une photo', style: TextStyle(fontFamily: 'Roboto')),
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile = await _picker.pickImage(source: ImageSource.camera);
@@ -69,35 +101,56 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _uploadProfilePicture(File file) async {
-    final fileName = '${widget.currentUser?.username}_profile.jpg';
+    if (widget.currentUser == null || widget.currentUser!.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur : Utilisateur non identifié'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    final fileName = '${widget.currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
-      await _supabase.storage.from('profiles').remove([fileName]);
+      // Supprimer l'ancienne photo si elle existe
+      if (_profilePictureUrl != null && _isValidUrl(_profilePictureUrl!)) {
+        final oldFileName = _profilePictureUrl!.split('/').last;
+        await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) => print('Error removing old image: $e'));
+      }
+
+      // Télécharger la nouvelle image
       await _supabase.storage.from('profiles').upload(fileName, file);
       final imageUrl = _supabase.storage.from('profiles').getPublicUrl(fileName);
 
-      final response = await _supabase.from('profiles').upsert({
-        'id': widget.currentUser!.id,
-        'username': _username,
-        'image_url': imageUrl,
+      // Mettre à jour la table users
+      final response = await _supabase
+          .from('users')
+          .update({'profile_picture': imageUrl})
+          .eq('id', widget.currentUser!.id)
+          .select()
+          .single();
+
+      // Mettre à jour l'état local avec la nouvelle URL
+      setState(() {
+        _profilePictureUrl = response['profile_picture'] as String?;
       });
 
-      if (response.error != null) throw Exception('Update error: ${response.error!.message}');
-
-      setState(() => _profilePictureUrl = imageUrl);
-
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Profile picture updated!')));
-    } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo de profil mise à jour !')),
+      );
+    } catch (e) {
+      print('Error uploading profile picture: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la mise à jour de la photo : $e'), backgroundColor: Colors.redAccent),
+      );
     }
   }
 
-  Future<void> _changePseudo() async {
-    TextEditingController pseudoController = TextEditingController(text: _pseudo);
+  Future<void> _changeUsername() async {
+    final TextEditingController usernameController = TextEditingController(text: _username);
 
-    showModalBottomSheet(
+    await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           left: 20,
@@ -108,32 +161,122 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10))),
-            SizedBox(height: 20),
-            Text("Change Pseudo", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            SizedBox(height: 16),
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
+            ),
+            const SizedBox(height: 20),
+            const Text('Changer le nom d’utilisateur', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+            const SizedBox(height: 16),
             TextField(
-              controller: pseudoController,
+              controller: usernameController,
               decoration: InputDecoration(
-                hintText: "Enter new pseudo",
+                hintText: 'Nouveau nom d’utilisateur',
                 filled: true,
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () {
-                setState(() => _pseudo = pseudoController.text);
-                Navigator.pop(context);
+              onPressed: () async {
+                final newUsername = usernameController.text.trim();
+                if (newUsername.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Le nom d’utilisateur ne peut pas être vide')),
+                  );
+                  return;
+                }
+                try {
+                  await _supabase.from('users').update({
+                    'username': newUsername,
+                  }).eq('id', widget.currentUser!.id);
+                  setState(() => _username = newUsername);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Nom d’utilisateur mis à jour !')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.redAccent),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black87,
+                backgroundColor: Colors.blue[600],
                 foregroundColor: Colors.white,
-                minimumSize: Size.fromHeight(50),
+                minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text("Save", style: TextStyle(fontSize: 16)),
+              child: const Text('Enregistrer', style: TextStyle(fontSize: 16, fontFamily: 'Roboto')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changePseudo() async {
+    final TextEditingController pseudoController = TextEditingController(text: _pseudo);
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
+            ),
+            const SizedBox(height: 20),
+            const Text('Changer le pseudo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pseudoController,
+              decoration: InputDecoration(
+                hintText: 'Nouveau pseudo',
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                final newPseudo = pseudoController.text.trim();
+                try {
+                  await _supabase.from('users').update({
+                    'pseudo': newPseudo.isEmpty ? null : newPseudo,
+                  }).eq('id', widget.currentUser!.id);
+                  setState(() => _pseudo = newPseudo);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Pseudo mis à jour !')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.redAccent),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Enregistrer', style: TextStyle(fontSize: 16, fontFamily: 'Roboto')),
             ),
           ],
         ),
@@ -144,23 +287,49 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _signOut() async {
     try {
       await _supabase.auth.signOut();
-      Navigator.pushReplacementNamed(context, '/');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/');
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign-out error: $e')));
+      print('Sign-out error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur de déconnexion : $e'), backgroundColor: Colors.redAccent),
+      );
     }
   }
 
-  Widget _buildSettingOption(IconData icon, String title, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
-          leading: Icon(icon, color: Colors.black87),
-          title: Text(title, style: TextStyle(fontWeight: FontWeight.w500)),
-          trailing: Icon(Icons.chevron_right),
-          onTap: onTap,
+  bool _isValidUrl(String? url) {
+    if (url == null || url.isEmpty) return false;
+    if (url.startsWith('file:///') || url.contains('via.placeholder.com')) return false;
+    return Uri.tryParse(url)?.hasAuthority ?? false;
+  }
+
+  Widget _buildSettingOption({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return MouseRegion(
+      onEnter: (_) => _controller.forward(),
+      onExit: (_) => _controller.reverse(),
+      child: ScaleTransition(
+        scale: _animation,
+        child: Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          child: ListTile(
+            leading: Icon(icon, color: Colors.blue[600], size: 28),
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                fontFamily: 'Roboto',
+              ),
+            ),
+            onTap: onTap,
+          ),
         ),
       ),
     );
@@ -170,65 +339,146 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text('Profile', style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black),
-        automaticallyImplyLeading: false,
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(24),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: _changeProfilePicture,
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundImage: _profilePictureUrl.isNotEmpty
-                        ? NetworkImage(_profilePictureUrl)
-                        : AssetImage('assets/default_profile.png') as ImageProvider,
-                    backgroundColor: Colors.grey[300],
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            leading: null,
+            automaticallyImplyLeading: false,
+            expandedHeight: 200,
+            floating: false,
+            pinned: true,
+            backgroundColor: Colors.white,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF1E88E5), Color(0xFF42A5F5)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  Container(
-                    padding: EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black12)],
+                ),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: _changeProfilePicture,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 8,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.grey[300],
+                            backgroundImage: _isValidUrl(_profilePictureUrl)
+                                ? NetworkImage(_profilePictureUrl!)
+                                : const AssetImage('assets/default_profile.png') as ImageProvider,
+                            onBackgroundImageError: _isValidUrl(_profilePictureUrl)
+                                ? (exception, stackTrace) {
+                              print('Error loading profile picture: $exception');
+                            }
+                                : null,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                          ),
+                          child: const Icon(Icons.camera_alt, size: 20, color: Colors.blue),
+                        ),
+                      ],
                     ),
-                    child: Icon(Icons.camera_alt, size: 20, color: Colors.grey[700]),
-                  )
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    _username,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Poppins',
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _pseudo.isEmpty ? 'Ajouter un pseudo' : '@$_pseudo',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                      fontFamily: 'Roboto',
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Paramètres',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Poppins',
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSettingOption(
+                    icon: Icons.person,
+                    title: 'Changer le nom d’utilisateur',
+                    onTap: _changeUsername,
+                  ),
+                  _buildSettingOption(
+                    icon: Icons.alternate_email,
+                    title: 'Changer le pseudo',
+                    onTap: _changePseudo,
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.logout, size: 24),
+                    label: const Text(
+                      'Déconnexion',
+                      style: TextStyle(fontSize: 16, fontFamily: 'Roboto'),
+                    ),
+                    onPressed: _signOut,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 5,
+                      minimumSize: const Size(double.infinity, 56),
+                      overlayColor: Colors.white.withOpacity(0.2),
+                    ),
+                  ),
                 ],
               ),
             ),
-            SizedBox(height: 20),
-            Text(_username, style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-            SizedBox(height: 6),
-            Text('@$_pseudo', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-            SizedBox(height: 32),
-            _buildSettingOption(Icons.person, 'Change User Name', () {}),
-            _buildSettingOption(Icons.alternate_email, 'Change Pseudo', _changePseudo),
-            SizedBox(height: 32),
-            ElevatedButton.icon(
-              icon: Icon(Icons.logout),
-              label: Text("Logout"),
-              onPressed: _signOut,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }

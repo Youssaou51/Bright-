@@ -5,7 +5,7 @@ class Comment {
   final String content;
   final DateTime createdAt;
   final String username;
-  final String profilePicture;
+  final String? profilePicture;
 
   Comment({
     required this.id,
@@ -14,20 +14,19 @@ class Comment {
     required this.content,
     required this.createdAt,
     required this.username,
-    required this.profilePicture,
+    this.profilePicture,
   });
 
-  // 👇 C'est ici que tu colles ta méthode
   factory Comment.fromMap(Map<String, dynamic> map) {
     final userMap = map['users'] ?? {};
     return Comment(
-      id: map['id'],
-      postId: map['post_id'],
-      userId: map['user_id'],
-      content: map['content'],
-      createdAt: DateTime.parse(map['created_at']),
-      username: userMap['username'] ?? 'Utilisateur',
-      profilePicture: userMap['profile_picture'] ?? '',
+      id: map['id'] as int,
+      postId: map['post_id'] as String,
+      userId: map['user_id'] as String,
+      content: map['content'] as String,
+      createdAt: DateTime.parse(map['created_at'] as String),
+      username: userMap['username'] as String? ?? 'Utilisateur anonyme',
+      profilePicture: userMap['profile_picture'] as String?,
     );
   }
 }
