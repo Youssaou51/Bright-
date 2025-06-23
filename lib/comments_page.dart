@@ -21,8 +21,9 @@ class CommentsPage extends StatefulWidget {
 
 class _CommentsPageState extends State<CommentsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  List<Comment> _comments = [];
   final TextEditingController _commentController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  List<Comment> _comments = [];
   bool _isLoading = true;
   String? _error;
 
@@ -47,10 +48,7 @@ class _CommentsPageState extends State<CommentsPage> {
             users:users!user_id(username, profile_picture)
           ''')
           .eq('post_id', widget.post.id)
-          .order('created_at', ascending: true)
-          .timeout(const Duration(seconds: 5));
-
-      print('Comments response: $response');
+          .order('created_at', ascending: true);
 
       setState(() {
         _comments = (response as List<dynamic>)
@@ -58,13 +56,26 @@ class _CommentsPageState extends State<CommentsPage> {
             .toList();
         _isLoading = false;
       });
+
+      _scrollToBottom();
     } catch (e) {
-      print('Error loading comments: $e');
       setState(() {
         _isLoading = false;
         _error = 'Erreur de chargement des commentaires : $e';
       });
     }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _addComment() async {
@@ -76,18 +87,20 @@ class _CommentsPageState extends State<CommentsPage> {
         'post_id': widget.post.id,
         'user_id': widget.currentUser.id,
         'content': content,
-      }).timeout(const Duration(seconds: 5));
+      });
 
       _commentController.clear();
+
+      setState(() {
+        widget.post.commentCount++;
+      });
+
       await _loadComments();
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Commentaire ajouté')),
-        );
-      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Commentaire ajouté')),
+      );
     } catch (e) {
-      print('Error adding comment: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erreur lors de l\'ajout du commentaire : $e'),
@@ -95,6 +108,51 @@ class _CommentsPageState extends State<CommentsPage> {
         ),
       );
     }
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      await _supabase.from('comments').delete().eq('id', commentId);
+
+      setState(() {
+        _comments.removeWhere((c) => c.id == commentId);
+        widget.post.commentCount--;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Commentaire supprimé')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur de suppression : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _confirmDeleteComment(Comment comment) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Supprimer le commentaire'),
+        content: const Text('Voulez-vous vraiment supprimer ce commentaire ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteComment(comment.id as String);
+            },
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   bool _isValidUrl(String? url) {
@@ -109,7 +167,8 @@ class _CommentsPageState extends State<CommentsPage> {
       initialChildSize: 0.9,
       minChildSize: 0.5,
       maxChildSize: 0.95,
-      builder: (context, scrollController) {
+      expand: false,
+      builder: (context, scrollSheetController) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -117,30 +176,8 @@ class _CommentsPageState extends State<CommentsPage> {
           ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Text(
-                'Commentaires',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Poppins',
-                ),
-              ),
+              const SizedBox(height: 12),
+              const Text('Commentaires', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const Divider(),
               Expanded(
                 child: _isLoading
@@ -148,105 +185,86 @@ class _CommentsPageState extends State<CommentsPage> {
                     : _error != null
                     ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
                     : _comments.isEmpty
-                    ? const Center(
-                  child: Text(
-                    'Aucun commentaire pour l\'instant',
-                    style: TextStyle(fontSize: 16, fontFamily: 'Roboto', color: Colors.grey),
-                  ),
-                )
+                    ? const Center(child: Text('Aucun commentaire pour l\'instant'))
                     : ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  controller: _scrollController,
                   itemCount: _comments.length,
                   itemBuilder: (context, index) {
                     final comment = _comments[index];
-                    print('Comment $index: username=${comment.username}, profile_picture=${comment.profilePicture}');
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: _isValidUrl(comment.profilePicture)
-                                ? NetworkImage(comment.profilePicture!)
-                                : null,
-                            onBackgroundImageError: _isValidUrl(comment.profilePicture)
-                                ? (exception, stackTrace) {
-                              print('Error loading profile picture for ${comment.username}: $exception');
-                            }
-                                : null,
-                            child: !_isValidUrl(comment.profilePicture)
-                                ? const Icon(Icons.person, color: Colors.grey)
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      comment.username,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                        fontFamily: 'Poppins',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      timeago.format(comment.createdAt, locale: 'fr'),
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 12,
-                                        fontFamily: 'Roboto',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  comment.content,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontFamily: 'Roboto',
-                                  ),
-                                ),
-                              ],
+                    final isOwner = comment.userId == widget.currentUser.id;
+
+                    return GestureDetector(
+                      onLongPress: isOwner
+                          ? () => _confirmDeleteComment(comment)
+                          : null,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundImage: _isValidUrl(comment.profilePicture)
+                                  ? NetworkImage(comment.profilePicture!)
+                                  : null,
+                              child: !_isValidUrl(comment.profilePicture)
+                                  ? const Icon(Icons.person)
+                                  : null,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        comment.username,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        timeago.format(comment.createdAt, locale: 'fr'),
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(comment.content),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        decoration: InputDecoration(
-                          hintText: 'Ajouter un commentaire...',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: InputDecoration(
+                            hintText: 'Ajouter un commentaire...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
-                      onPressed: _addComment,
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
+                        onPressed: _addComment,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -259,6 +277,7 @@ class _CommentsPageState extends State<CommentsPage> {
   @override
   void dispose() {
     _commentController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }

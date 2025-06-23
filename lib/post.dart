@@ -7,7 +7,7 @@ class Post {
   final String? caption;
   final List<String> images;
   final int likesCount;
-  final int commentCount;
+  int commentCount;
   final DateTime timestamp;
 
   Post({
