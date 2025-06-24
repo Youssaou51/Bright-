@@ -6,8 +6,9 @@ import 'user.dart' as localUser;
 
 class ProfilePage extends StatefulWidget {
   final localUser.User? currentUser;
+  final Future<void> Function()? refreshPosts; // Ajout de la fonction de rechargement
 
-  const ProfilePage({Key? key, this.currentUser}) : super(key: key);
+  const ProfilePage({Key? key, this.currentUser, this.refreshPosts}) : super(key: key);
 
   @override
   _ProfilePageState createState() => _ProfilePageState();
@@ -101,14 +102,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   }
 
   Future<void> _uploadProfilePicture(File file) async {
-    if (widget.currentUser == null || widget.currentUser!.id == null) {
+    if (widget.currentUser == null || widget.currentUser!.username == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur : Utilisateur non identifié'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Erreur : Nom d\'utilisateur non trouvé'), backgroundColor: Colors.redAccent),
       );
       return;
     }
 
-    final fileName = '${widget.currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final username = widget.currentUser!.username.replaceAll('@', '_').replaceAll('.', '_');
+    final fileName = '${username}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
       // Supprimer l'ancienne photo si elle existe
       if (_profilePictureUrl != null && _isValidUrl(_profilePictureUrl!)) {
@@ -116,21 +118,32 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) => print('Error removing old image: $e'));
       }
 
-      // Télécharger la nouvelle image
+      // Télécharger la nouvelle image directement dans le bucket profiles
       await _supabase.storage.from('profiles').upload(fileName, file);
       final imageUrl = _supabase.storage.from('profiles').getPublicUrl(fileName);
 
       // Mettre à jour la table users
-      final response = await _supabase
+      final userResponse = await _supabase
           .from('users')
           .update({'profile_picture': imageUrl})
           .eq('id', widget.currentUser!.id)
           .select()
           .single();
 
+      // Mettre à jour la table posts avec la nouvelle photo de profil
+      await _supabase
+          .from('posts')
+          .update({'profile_picture': imageUrl})
+          .eq('user_id', widget.currentUser!.id);
+
+      // Recharger les posts
+      if (widget.refreshPosts != null) {
+        await widget.refreshPosts!();
+      }
+
       // Mettre à jour l'état local avec la nouvelle URL
       setState(() {
-        _profilePictureUrl = response['profile_picture'] as String?;
+        _profilePictureUrl = userResponse['profile_picture'] as String?;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(

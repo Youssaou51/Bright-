@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'welcome_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
-import 'post.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
 import 'user.dart' as local;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'post.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,14 +16,14 @@ void main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
   );
 
-  // ⚡ Gère l’ajout automatique dans la table 'users' après connexion
+  // Ajout automatique de l'utilisateur dans la table 'users' après connexion
   Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
     final event = data.event;
     final session = data.session;
 
-    if (event == AuthChangeEvent.signedIn && session != null && session.user != null)
-    {
+    if (event == AuthChangeEvent.signedIn && session != null) {
       final user = session.user;
+      if (user == null) return;
 
       final existing = await Supabase.instance.client
           .from('users')
@@ -35,11 +35,11 @@ void main() async {
         await Supabase.instance.client.from('users').insert({
           'id': user.id,
           'username': user.email?.split('@')[0] ?? 'Anonymous',
-          'profile_picture': '', // Valeur par défaut
+          'profile_picture': '',
         });
-        print('✅ Nouvel utilisateur ajouté à Supabase : ${user.email}');
+        print('✅ Nouvel utilisateur ajouté : ${user.email}');
       } else {
-        print('👤 Utilisateur déjà existant : ${user.email}');
+        print('👤 Utilisateur existant : ${user.email}');
       }
     }
   });
@@ -47,11 +47,51 @@ void main() async {
   runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
+  // Ne pas mettre const ici (important pour éviter l’erreur hot reload)
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final SupabaseClient _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  bool _isLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+    // Écoute les changements d'auth pour mettre à jour l'état de connexion
+    _supabase.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      setState(() {
+        _isLoggedIn = event == AuthChangeEvent.signedIn;
+      });
+    });
+  }
+
+  void _checkSession() {
+    final session = _supabase.auth.currentSession;
+    setState(() {
+      _isLoggedIn = session != null;
+      _isLoading = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'BFF',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
@@ -59,7 +99,7 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.white,
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 0,
@@ -70,41 +110,42 @@ class MyApp extends StatelessWidget {
             foregroundColor: Colors.white,
           ),
         ),
-        textTheme: TextTheme(
+        textTheme: const TextTheme(
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      initialRoute: '/',
+      initialRoute: _isLoggedIn ? '/home' : '/',
       routes: {
         '/': (context) => WelcomePage(),
+        '/login': (context) => LoginPage(),
+        '/signup': (context) => SignupPage(),
         '/home': (context) {
+          final user = _supabase.auth.currentUser;
           final currentUser = local.User(
-            id: "user_id",
-            username: "DummyUser",
-            pseudo: "DummyPseudo",
+            id: user?.id ?? '',
+            username: user?.email?.split('@')[0] ?? 'User',
+            pseudo: user?.email ?? 'user@bff.com',
             imageUrl: "https://via.placeholder.com/150",
           );
           return HomePage(
             posts: [],
             currentUser: currentUser,
             refreshPosts: () async {
-              print('Refreshing posts...');
+              print('🔄 Rafraîchissement des posts...');
             },
             likedPostIds: <String>{},
-
           );
         },
         '/profile': (context) {
+          final user = _supabase.auth.currentUser;
           final currentUser = local.User(
-            id: "user_id",
-            username: "DummyUser",
-            pseudo: "DummyPseudo",
+            id: user?.id ?? '',
+            username: user?.email?.split('@')[0] ?? 'User',
+            pseudo: user?.email ?? 'user@bff.com',
             imageUrl: "https://via.placeholder.com/150",
           );
           return ProfilePage(currentUser: currentUser);
         },
-        '/login': (context) => LoginPage(),
-        '/signup': (context) => SignupPage(),
       },
     );
   }

@@ -281,9 +281,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
 
-      final profilePictureUrl = _supabase.storage
-          .from('profiles')
-          .getPublicUrl('${widget.currentUser.username}_profile.jpg');
+      // Fetch the current profile picture URL from the users table
+      final userResponse = await _supabase
+          .from('users')
+          .select('profile_picture')
+          .eq('id', widget.currentUser.id)
+          .single();
+      final profilePictureUrl = userResponse['profile_picture'] as String?;
 
       final post = {
         'id': postId,
@@ -496,7 +500,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                           child: Text(
                             'Bright Future Foundation',
                             style: GoogleFonts.poppins(
-                              fontSize: 20, // Reduced size for better fit
+                              fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
@@ -556,7 +560,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       ReportsPage(),
                       Container(), // Placeholder for Media page
                       TasksPage(),
-                      ProfilePage(currentUser: widget.currentUser),
+                      ProfilePage(
+                        currentUser: widget.currentUser,
+                        refreshPosts: _loadPosts, // Passer la fonction de rechargement
+                      ),
                     ],
                   ),
                 ),

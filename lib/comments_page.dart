@@ -48,7 +48,8 @@ class _CommentsPageState extends State<CommentsPage> {
             users:users!user_id(username, profile_picture)
           ''')
           .eq('post_id', widget.post.id)
-          .order('created_at', ascending: true);
+          .order('created_at', ascending: true)
+          .timeout(const Duration(seconds: 5));
 
       setState(() {
         _comments = (response as List<dynamic>)
@@ -125,30 +126,30 @@ class _CommentsPageState extends State<CommentsPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erreur de suppression : $e'),
-          backgroundColor: Colors.red,
+          content: Text('Erreur lors de la suppression : $e'),
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
 
-  void _confirmDeleteComment(Comment comment) {
+  void _confirmDelete(Comment comment) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Supprimer le commentaire'),
-        content: const Text('Voulez-vous vraiment supprimer ce commentaire ?'),
+        title: const Text('Supprimer ce commentaire ?'),
+        content: const Text('Cette action est irréversible.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
             child: const Text('Annuler'),
+            onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.of(context).pop();
               _deleteComment(comment.id as String);
             },
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -163,114 +164,147 @@ class _CommentsPageState extends State<CommentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollSheetController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              const Text('Commentaires', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const Divider(),
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-                    : _comments.isEmpty
-                    ? const Center(child: Text('Aucun commentaire pour l\'instant'))
-                    : ListView.builder(
-                  controller: _scrollController,
-                  itemCount: _comments.length,
-                  itemBuilder: (context, index) {
-                    final comment = _comments[index];
-                    final isOwner = comment.userId == widget.currentUser.id;
-
-                    return GestureDetector(
-                      onLongPress: isOwner
-                          ? () => _confirmDeleteComment(comment)
-                          : null,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundImage: _isValidUrl(comment.profilePicture)
-                                  ? NetworkImage(comment.profilePicture!)
-                                  : null,
-                              child: !_isValidUrl(comment.profilePicture)
-                                  ? const Icon(Icons.person)
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        comment.username,
-                                        style: const TextStyle(fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        timeago.format(comment.createdAt, locale: 'fr'),
-                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(comment.content),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: Colors.transparent,
+      body: DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollSheetController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    );
-                  },
-                ),
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          decoration: InputDecoration(
-                            hintText: 'Ajouter un commentaire...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
-                        onPressed: _addComment,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+                const Text(
+                  'Commentaires',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                const Divider(),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                      ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+                      : _comments.isEmpty
+                      ? const Center(
+                    child: Text(
+                      'Aucun commentaire pour l\'instant',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  )
+                      : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _comments.length,
+                    itemBuilder: (context, index) {
+                      final comment = _comments[index];
+                      final isOwner = comment.userId == widget.currentUser.id;
+
+                      return GestureDetector(
+                        onTap: isOwner ? () => _confirmDelete(comment) : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.grey.shade200,
+                                backgroundImage: _isValidUrl(comment.profilePicture)
+                                    ? NetworkImage(comment.profilePicture!)
+                                    : null,
+                                child: !_isValidUrl(comment.profilePicture)
+                                    ? const Icon(Icons.person, color: Colors.grey)
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          comment.username,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          timeago.format(comment.createdAt, locale: 'fr'),
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      comment.content,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            decoration: InputDecoration(
+                              hintText: 'Ajouter un commentaire...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
+                          onPressed: _addComment,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
