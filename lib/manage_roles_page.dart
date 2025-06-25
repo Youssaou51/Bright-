@@ -25,7 +25,7 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
     try {
       final response = await widget.supabase
           .from('users')
-          .select('id, username, role')
+          .select('id, username, role, is_active')
           .order('username', ascending: true);
       setState(() {
         _users = List<Map<String, dynamic>>.from(response);
@@ -41,6 +41,30 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
       );
     }
   }
+
+  Future<void> _toggleActivation(String userId, bool isActive) async {
+    try {
+      await widget.supabase
+          .from('users')
+          .update({'is_active': isActive})
+          .eq('id', userId);
+      setState(() {
+        final userIndex = _users.indexWhere((user) => user['id'] == userId);
+        if (userIndex != -1) {
+          _users[userIndex]['is_active'] = isActive;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isActive ? 'Utilisateur activé' : 'Utilisateur désactivé')),
+      );
+    } catch (e) {
+      print('Error toggling activation: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la mise à jour de l\'activation: $e')),
+      );
+    }
+  }
+
 
   Future<void> _updateRole(String userId, String newRole) async {
     try {
@@ -78,25 +102,70 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
         itemCount: _users.length,
         itemBuilder: (context, index) {
           final user = _users[index];
-          return ListTile(
-            leading: CircleAvatar(child: Text(user['username'][0])),
-            title: Text(user['username'], style: GoogleFonts.poppins()),
-            subtitle: Text('Rôle actuel: ${user['role']}', style: GoogleFonts.poppins()),
-            trailing: DropdownButton<String>(
-              value: user['role'],
-              items: ['user', 'admin'].map((String role) {
-                return DropdownMenuItem<String>(
-                  value: role,
-                  child: Text(role, style: GoogleFonts.poppins()),
-                );
-              }).toList(),
-              onChanged: (String? newRole) {
-                if (newRole != null && newRole != user['role']) {
-                  _updateRole(user['id'], newRole);
-                }
-              },
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(child: Text(user['username'][0])),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user['username'], style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                            Text('Rôle: ${user['role']}', style: GoogleFonts.poppins(fontSize: 13)),
+                            Text('Actif: ${user['is_active'] ? 'Oui' : 'Non'}', style: GoogleFonts.poppins(fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      DropdownButton<String>(
+                        value: user['role'],
+                        items: ['user', 'admin'].map((String role) {
+                          return DropdownMenuItem<String>(
+                            value: role,
+                            child: Text(role, style: GoogleFonts.poppins(fontSize: 13)),
+                          );
+                        }).toList(),
+                        onChanged: (String? newRole) {
+                          if (newRole != null && newRole != user['role']) {
+                            _updateRole(user['id'], newRole);
+                          }
+                        },
+                      ),
+                      Row(
+                        children: [
+                          Text('Activer', style: GoogleFonts.poppins(fontSize: 13)),
+                          Switch(
+                            value: user['is_active'] ?? false,
+                            onChanged: (bool newValue) {
+                              _toggleActivation(user['id'], newValue);
+                            },
+                            activeColor: Colors.green,
+                            inactiveThumbColor: Colors.red,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
+
+
         },
       ),
     );

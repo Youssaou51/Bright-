@@ -37,22 +37,18 @@ class _SignupPageState extends State<SignupPage> {
           'id': userId,
           'username': _usernameController.text.trim(),
           'profile_picture': "https://via.placeholder.com/150",
+          'is_active': false,
         });
 
-        // Navigate to Dashboard with custom user model
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DashboardPage(
-              currentUser: local.User(
-                id: userId,
-                username: _usernameController.text.trim(),
-                pseudo: _usernameController.text.trim(),
-                imageUrl: "https://via.placeholder.com/150",
-              ),
-            ),
+        // ✅ Notify and return to login instead of auto-login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Your account has been created. Please wait for admin approval.'),
+            backgroundColor: Colors.orange,
           ),
         );
+
+        Navigator.pop(context); // 👈 Optional: go back to LoginPage
       }
     } catch (e) {
       // Show error message

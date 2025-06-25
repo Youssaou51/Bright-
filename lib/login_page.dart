@@ -26,15 +26,37 @@ class _LoginPageState extends State<LoginPage> {
 
       final user = response.user;
       if (user != null) {
+        // 🔍 Check if the user is active in the 'users' table
+        final userData = await Supabase.instance.client
+            .from('users')
+            .select('is_active, username, profile_picture')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        final isActive = userData?['is_active'] ?? false;
+
+        if (!isActive) {
+          // 🛑 User not yet approved by admin
+          await Supabase.instance.client.auth.signOut(); // logout
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Your account is not yet activated. Please wait for admin approval."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+
+        // ✅ User is active, navigate to dashboard
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => DashboardPage(
               currentUser: local.User(
                 id: user.id,
-                username: user.email ?? 'User',
-                pseudo: user.email ?? 'User',
-                imageUrl: "https://via.placeholder.com/150",
+                username: userData?['username'] ?? user.email ?? 'User',
+                pseudo: userData?['username'] ?? user.email ?? 'User',
+                imageUrl: userData?['avatar_url'] ?? "https://via.placeholder.com/150",
               ),
             ),
           ),
@@ -61,6 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
