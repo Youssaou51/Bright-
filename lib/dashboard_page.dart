@@ -30,6 +30,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   List<Post> _posts = [];
   Set<String> _likedPostIds = {};
   double _currentAmount = 0.0;
+  bool _isAdmin = false; // Track if the user is an admin
 
   @override
   void initState() {
@@ -37,7 +38,61 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     _pageController = PageController();
     print('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
     print('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
+    _checkUserRole(); // Check user role on init
     _loadPosts();
+    _loadInitialAmount(); // Load initial amount
+  }
+
+  Future<void> _checkUserRole() async {
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        _isAdmin = false;
+      });
+      return;
+    }
+
+    try {
+      final userRoleResponse = await _supabase
+          .from('users') // ✅ Pas besoin de 'public.'
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+      final userRole = userRoleResponse['role'] as String? ?? 'user';
+
+      print('Rôle récupéré depuis la table users : $userRole');
+
+      setState(() {
+        _isAdmin = userRole.toLowerCase() == 'admin';
+      });
+    } catch (e) {
+      print('Erreur lors de la vérification du rôle utilisateur : $e');
+      setState(() {
+        _isAdmin = false; // On considère par défaut que l'utilisateur n'est pas admin
+      });
+    }
+  }
+
+
+  Future<void> _loadInitialAmount() async {
+    try {
+      final response = await _supabase
+          .from('funds')
+          .select('amount')
+          .eq('id', 'foundation-funds')
+          .single()
+          .catchError((e) => print('Error loading initial amount: $e'));
+      setState(() {
+        _currentAmount = (response['amount'] as num?)?.toDouble() ?? 0.0;
+      });
+    } catch (e) {
+      print('Error loading initial amount: $e');
+      setState(() {
+        _currentAmount = 0.0;
+      });
+    }
   }
 
   Future<void> _loadPosts() async {
@@ -46,7 +101,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       final postsResponse = await _supabase
           .from('posts')
           .select('''
-          id, user_id, username, profile_picture, caption, image_urls, likes_count, timestamp,
+          id, user_id, username, profile_picture, caption, image_urls, video_urls, likes_count, timestamp,
           comment_count:comments(count)
         ''')
           .order('timestamp', ascending: false)
@@ -281,7 +336,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
 
-      // Fetch the current profile picture URL from the users table
       final userResponse = await _supabase
           .from('users')
           .select('profile_picture')
@@ -448,7 +502,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       'Mettre à jour',
                       style: GoogleFonts.poppins(
                         color: Colors.white,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -469,7 +523,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       backgroundColor: Colors.grey[100],
       body: Stack(
         children: [
-          // Background Gradient
           Positioned(
             top: 0,
             left: 0,
@@ -488,7 +541,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           SafeArea(
             child: Column(
               children: [
-                // Custom Header
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ConstrainedBox(
@@ -508,17 +560,17 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                             maxLines: 1,
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.white, size: 28),
-                          onPressed: _showUpdateFundsDialog,
-                          tooltip: 'Modifier le montant des fonds',
-                          constraints: BoxConstraints(minWidth: 48, minHeight: 48),
-                        ),
+                        if (_isAdmin) // Show edit icon only if user is admin
+                          IconButton(
+                            icon: Icon(Icons.edit, color: Colors.white, size: 28),
+                            onPressed: _showUpdateFundsDialog,
+                            tooltip: 'Modifier le montant des fonds',
+                            constraints: BoxConstraints(minWidth: 48, minHeight: 48),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                // Header with FoundationAmountWidget
                 Container(
                   margin: EdgeInsets.symmetric(horizontal: 16),
                   padding: EdgeInsets.all(16),
@@ -545,7 +597,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                   ),
                 ),
                 SizedBox(height: 16),
-                // PageView Content
                 Expanded(
                   child: PageView(
                     controller: _pageController,
@@ -562,7 +613,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       TasksPage(),
                       ProfilePage(
                         currentUser: widget.currentUser,
-                        refreshPosts: _loadPosts, // Passer la fonction de rechargement
+                        refreshPosts: _loadPosts,
                       ),
                     ],
                   ),

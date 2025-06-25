@@ -9,6 +9,8 @@ class Task {
   bool isCompleted;
   final Priority priority;
 
+
+
   Task({
     required this.id,
     required this.title,
@@ -55,6 +57,7 @@ class _TasksPageState extends State<TasksPage> {
   String _searchQuery = '';
   final supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool isAdmin = false;
 
   List<Task> get _filteredTasks {
     return _tasks.where((task) =>
@@ -69,6 +72,7 @@ class _TasksPageState extends State<TasksPage> {
   void initState() {
     super.initState();
     _loadTasks();
+    _checkIfAdmin();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text;
@@ -99,6 +103,24 @@ class _TasksPageState extends State<TasksPage> {
       setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _checkIfAdmin() async {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final response = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (response != null && response['role'] == 'admin') {
+      setState(() {
+        isAdmin = true;
+      });
+    }
+  }
+
 
   Future<void> _toggleTaskCompletion(Task task) async {
     final wasCompleted = task.isCompleted;
@@ -324,8 +346,9 @@ class _TasksPageState extends State<TasksPage> {
                     child: ListTile(
                       leading: Checkbox(
                         value: task.isCompleted,
-                        onChanged: (_) => _toggleTaskCompletion(task),
+                        onChanged: isAdmin ? (_) => _toggleTaskCompletion(task) : null,
                       ),
+
                       title: Text(
                         task.title,
                         style: TextStyle(
@@ -351,10 +374,13 @@ class _TasksPageState extends State<TasksPage> {
                           ),
                         ],
                       ),
-                      trailing: IconButton(
+                      trailing: isAdmin
+                          ? IconButton(
                         icon: Icon(Icons.delete, color: Colors.red),
                         onPressed: () => _deleteTask(task),
-                      ),
+                      )
+                          : null,
+
                     ),
                   );
                 },
@@ -363,11 +389,14 @@ class _TasksPageState extends State<TasksPage> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: isAdmin
+          ? FloatingActionButton(
         onPressed: _addTaskDialog,
         child: Icon(Icons.add, color: Colors.white),
         backgroundColor: Colors.blue.shade900,
-      ),
+      )
+          : null,
+
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:chewie/chewie.dart';
+import 'package:video_player/video_player.dart';
 import 'post.dart';
 import 'comments_page.dart';
 import 'user.dart' as AppUser;
@@ -129,13 +131,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
-  void _showImageViewer(BuildContext context, List<String> images, int initialIndex) {
+  void _showMediaViewer(BuildContext context, List<String> media, int initialIndex, bool isVideo) {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => ImageViewer(
-          images: images,
+        pageBuilder: (context, animation, secondaryAnimation) => MediaViewer(
+          media: media,
           initialIndex: initialIndex,
+          isVideo: isVideo,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -147,10 +150,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
   }
 
+  void _sharePost(Post post) {
+    String shareText = post.caption ?? 'Check out this post from Bright Future Foundation!';
+    if (post.imageUrls.isNotEmpty) {
+      shareText += '\nImage: ${post.imageUrls.first}';
+    } else if (post.videoUrls.isNotEmpty) {
+      shareText += '\nVideo: ${post.videoUrls.first}';
+    }
+    Share.share(shareText, subject: 'Check out this post from Bright Future Foundation!');
+  }
+
   Widget _buildPostItem(Post post, int index) {
     print('Construction du post ${post.id} avec caption: ${post.caption}');
     final isLiked = _likedPostIds.contains(post.id);
-    final hasImages = post.images.isNotEmpty;
+    final hasImages = post.imageUrls.isNotEmpty;
+    final hasVideos = post.videoUrls.isNotEmpty;
 
     return FadeIn(
       delay: Duration(milliseconds: 100 * index),
@@ -195,36 +209,52 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 ),
               ),
             ),
-            if (hasImages)
-              GestureDetector(
-                onTap: () => _showImageViewer(context, post.images, 0),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                  child: SizedBox(
-                    height: 280,
-                    child: PageView.builder(
-                      itemCount: post.images.length,
-                      itemBuilder: (context, index) => Image.network(
-                        post.images[index],
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                  : null,
+            if (hasImages || hasVideos)
+              Column(
+                children: [
+                  if (hasImages)
+                    GestureDetector(
+                      onTap: () => _showMediaViewer(context, post.imageUrls, 0, false),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                        child: SizedBox(
+                          height: 280,
+                          child: PageView.builder(
+                            itemCount: post.imageUrls.length,
+                            itemBuilder: (context, index) => Image.network(
+                              post.imageUrls[index],
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) => const Center(
+                                child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                              ),
                             ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) => const Center(
-                          child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  if (hasVideos)
+                    GestureDetector(
+                      onTap: () => _showMediaViewer(context, post.videoUrls, 0, true),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                        child: SizedBox(
+                          height: 400, // Ajusté pour une vidéo verticale
+                          child: ChewieVideoWidget(url: post.videoUrls[0], forceVertical: true),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -259,12 +289,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     icon: Icons.share_outlined,
                     color: Colors.grey.shade700,
                     label: '',
-                    onTap: () {
-                      final shareText = post.images.isNotEmpty
-                          ? '${post.caption ?? ''}\n${post.images.first}'
-                          : post.caption ?? '';
-                      Share.share(shareText, subject: 'Check out this post from Bright Future Foundation!');
-                    },
+                    onTap: () => _sharePost(post),
                   ),
                 ],
               ),
@@ -397,18 +422,19 @@ class _FadeInState extends State<FadeIn> with SingleTickerProviderStateMixin {
   }
 }
 
-// Full-screen image viewer
-class ImageViewer extends StatefulWidget {
-  final List<String> images;
+// Full-screen media viewer (images or videos)
+class MediaViewer extends StatefulWidget {
+  final List<String> media;
   final int initialIndex;
+  final bool isVideo;
 
-  const ImageViewer({required this.images, this.initialIndex = 0, Key? key}) : super(key: key);
+  const MediaViewer({required this.media, this.initialIndex = 0, required this.isVideo, Key? key}) : super(key: key);
 
   @override
-  _ImageViewerState createState() => _ImageViewerState();
+  _MediaViewerState createState() => _MediaViewerState();
 }
 
-class _ImageViewerState extends State<ImageViewer> {
+class _MediaViewerState extends State<MediaViewer> {
   late PageController _pageController;
   late int _currentIndex;
 
@@ -431,16 +457,25 @@ class _ImageViewerState extends State<ImageViewer> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          PhotoViewGallery.builder(
-            pageController: _pageController,
-            itemCount: widget.images.length,
-            builder: (context, index) {
-              return PhotoViewGalleryPageOptions(
-                imageProvider: NetworkImage(widget.images[index]),
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.media.length,
+            itemBuilder: (context, index) {
+              return widget.isVideo
+                  ? ChewieVideoWidget(url: widget.media[index], forceVertical: true)
+                  : PhotoView(
+                imageProvider: NetworkImage(widget.media[index]),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                ),
+                loadingBuilder: (context, event) => Center(
+                  child: CircularProgressIndicator(
+                    value: event == null
+                        ? null
+                        : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
+                  ),
                 ),
               );
             },
@@ -449,14 +484,6 @@ class _ImageViewerState extends State<ImageViewer> {
                 _currentIndex = index;
               });
             },
-            loadingBuilder: (context, event) => Center(
-              child: CircularProgressIndicator(
-                value: event == null
-                    ? null
-                    : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
-              ),
-            ),
-            backgroundDecoration: const BoxDecoration(color: Colors.black),
           ),
           SafeArea(
             child: Align(
@@ -467,14 +494,14 @@ class _ImageViewerState extends State<ImageViewer> {
               ),
             ),
           ),
-          if (widget.images.length > 1)
+          if (widget.media.length > 1)
             SafeArea(
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                    '${_currentIndex + 1} / ${widget.images.length}',
+                    '${_currentIndex + 1} / ${widget.media.length}',
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Roboto'),
                   ),
                 ),
@@ -483,5 +510,53 @@ class _ImageViewerState extends State<ImageViewer> {
         ],
       ),
     );
+  }
+}
+
+// Video player widget with Chewie
+class ChewieVideoWidget extends StatefulWidget {
+  final String url;
+  final bool forceVertical;
+
+  const ChewieVideoWidget({required this.url, this.forceVertical = false, Key? key}) : super(key: key);
+
+  @override
+  _ChewieVideoWidgetState createState() => _ChewieVideoWidgetState();
+}
+
+class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
+  late VideoPlayerController _videoPlayerController;
+  late ChewieController _chewieController;
+
+  @override
+  void initState() {
+    super.initState();
+    _videoPlayerController = VideoPlayerController.network(widget.url);
+    _chewieController = ChewieController(
+      videoPlayerController: _videoPlayerController,
+      aspectRatio: widget.forceVertical ? 9 / 16 : null,
+      autoPlay: true,
+      looping: true,
+      showControls: false,
+    );
+    _videoPlayerController.initialize().then((_) {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _videoPlayerController.value.isInitialized
+        ? Chewie(
+      controller: _chewieController,
+    )
+        : const Center(child: CircularProgressIndicator());
   }
 }

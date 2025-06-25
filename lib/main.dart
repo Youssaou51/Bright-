@@ -48,7 +48,6 @@ void main() async {
 }
 
 class MyApp extends StatefulWidget {
-  // Ne pas mettre const ici (important pour éviter l’erreur hot reload)
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -114,7 +113,7 @@ class _MyAppState extends State<MyApp> {
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      initialRoute: _isLoggedIn ? '/home' : '/',
+      initialRoute: '/',
       routes: {
         '/': (context) => WelcomePage(),
         '/login': (context) => LoginPage(),

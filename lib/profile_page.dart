@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'user.dart' as localUser;
+import 'manage_roles_page.dart'; // Import the ManageRolesPage
 
 class ProfilePage extends StatefulWidget {
   final localUser.User? currentUser;
@@ -22,6 +23,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   final SupabaseClient _supabase = Supabase.instance.client;
   late AnimationController _controller;
   late Animation<double> _animation;
+  bool _isAdmin = false; // Track if the user is an admin
+  bool _isLoading = true; // Track loading state
 
   @override
   void initState() {
@@ -36,11 +39,44 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     _animation = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
+    _checkUserRoleAndNavigateCheckOnly().then((_) {
+      setState(() {
+        _isLoading = false;
+      });
+    }); // Ensure role check completes before rendering
     _loadProfile();
+  }
+
+  Future<void> _checkUserRoleAndNavigateCheckOnly() async {
+    final user = _supabase.auth.currentUser;
+    print('Dashboard - Checking role for user: ${user?.id}');
+
+    if (user == null) {
+      print('Dashboard - No authenticated user');
+      setState(() => _isAdmin = false);
+      return;
+    }
+
+    try {
+      final response = await _supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+      final role = (response['role'] as String?)?.toLowerCase() ?? 'user';
+      print('Dashboard - Role retrieved: $role for user id: ${user.id}');
+      setState(() {
+        _isAdmin = role == 'admin';
+      });
+    } catch (e) {
+      print('Dashboard - Error checking user role: $e, Stack trace: ${StackTrace.current}');
+      setState(() => _isAdmin = false);
+    }
   }
 
   Future<void> _loadProfile() async {
     try {
+      print('Dashboard - Loading profile for user id: ${widget.currentUser?.id}');
       final response = await _supabase
           .from('users')
           .select('username, pseudo, profile_picture')
@@ -52,7 +88,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         _profilePictureUrl = response['profile_picture'] as String?;
       });
     } catch (e) {
-      print('Error loading profile: $e');
+      print('Dashboard - Error loading profile: $e, Stack trace: ${StackTrace.current}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur de chargement du profil : $e'), backgroundColor: Colors.redAccent),
       );
@@ -112,17 +148,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     final username = widget.currentUser!.username.replaceAll('@', '_').replaceAll('.', '_');
     final fileName = '${username}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     try {
-      // Supprimer l'ancienne photo si elle existe
       if (_profilePictureUrl != null && _isValidUrl(_profilePictureUrl!)) {
         final oldFileName = _profilePictureUrl!.split('/').last;
-        await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) => print('Error removing old image: $e'));
+        await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) => print('Dashboard - Error removing old image: $e'));
       }
 
-      // Télécharger la nouvelle image directement dans le bucket profiles
       await _supabase.storage.from('profiles').upload(fileName, file);
       final imageUrl = _supabase.storage.from('profiles').getPublicUrl(fileName);
 
-      // Mettre à jour la table users
       final userResponse = await _supabase
           .from('users')
           .update({'profile_picture': imageUrl})
@@ -130,18 +163,15 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           .select()
           .single();
 
-      // Mettre à jour la table posts avec la nouvelle photo de profil
       await _supabase
           .from('posts')
           .update({'profile_picture': imageUrl})
           .eq('user_id', widget.currentUser!.id);
 
-      // Recharger les posts
       if (widget.refreshPosts != null) {
         await widget.refreshPosts!();
       }
 
-      // Mettre à jour l'état local avec la nouvelle URL
       setState(() {
         _profilePictureUrl = userResponse['profile_picture'] as String?;
       });
@@ -150,7 +180,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         const SnackBar(content: Text('Photo de profil mise à jour !')),
       );
     } catch (e) {
-      print('Error uploading profile picture: $e');
+      print('Dashboard - Error uploading profile picture: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de la mise à jour de la photo : $e'), backgroundColor: Colors.redAccent),
       );
@@ -304,7 +334,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         Navigator.pushReplacementNamed(context, '/');
       }
     } catch (e) {
-      print('Sign-out error: $e');
+      print('Dashboard - Sign-out error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur de déconnexion : $e'), backgroundColor: Colors.redAccent),
       );
@@ -350,9 +380,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    print('Dashboard - Building ProfilePage - isAdmin: $_isAdmin, isLoading: $_isLoading');
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: CustomScrollView(
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : CustomScrollView(
         slivers: [
           SliverAppBar(
             leading: null,
@@ -396,7 +429,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                                 : const AssetImage('assets/default_profile.png') as ImageProvider,
                             onBackgroundImageError: _isValidUrl(_profilePictureUrl)
                                 ? (exception, stackTrace) {
-                              print('Error loading profile picture: $exception');
+                              print('Dashboard - Error loading profile picture: $exception');
                             }
                                 : null,
                           ),
@@ -416,6 +449,22 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 ),
               ),
             ),
+            actions: [
+              if (_isAdmin)
+                IconButton(
+                  icon: Icon(Icons.settings, color: Colors.white, size: 28),
+                  onPressed: () {
+                    print('Dashboard - Navigating to ManageRolesPage');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ManageRolesPage(supabase: _supabase),
+                      ),
+                    );
+                  },
+                  tooltip: 'Gérer les rôles',
+                ),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(

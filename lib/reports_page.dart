@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'foundation_amount_widget.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -19,6 +18,7 @@ class _ReportsPageState extends State<ReportsPage> {
   bool isLoading = true;
   bool isDeleting = false;
   int? deletingIndex;
+  bool isAdmin = false;
 
   DateTime selectedDate = DateTime.now();
 
@@ -26,6 +26,7 @@ class _ReportsPageState extends State<ReportsPage> {
   void initState() {
     super.initState();
     _fetchReports();
+    _checkIfAdmin();
   }
 
   Future<void> _fetchReports() async {
@@ -47,6 +48,23 @@ class _ReportsPageState extends State<ReportsPage> {
       _showError('Oops! Failed to load reports: $e');
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _checkIfAdmin() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final response = await _supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (response != null && response['role'] == 'admin') {
+      setState(() {
+        isAdmin = true;
+      });
     }
   }
 
@@ -118,10 +136,7 @@ class _ReportsPageState extends State<ReportsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red.shade600,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -132,10 +147,7 @@ class _ReportsPageState extends State<ReportsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.green.shade600,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          backgroundColor: Colors.green,
         ),
       );
     }
@@ -173,14 +185,14 @@ class _ReportsPageState extends State<ReportsPage> {
         foregroundColor: Colors.black87,
         automaticallyImplyLeading: false,
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
         onPressed: _uploadReport,
         label: const Text('Upload'),
         icon: const Icon(Icons.upload_file),
         backgroundColor: primaryColor,
-        elevation: 6,
-        hoverElevation: 12,
-      ),
+      )
+          : null,
       body: Column(
         children: [
           GestureDetector(
@@ -201,11 +213,9 @@ class _ReportsPageState extends State<ReportsPage> {
                 ],
               ),
               child: Row(
-
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.calendar_today, color: primaryColor),
-                  // FoundationAmountWidget(),
                   const SizedBox(width: 12),
                   Text(
                     '${_monthName(selectedDate.month)} ${selectedDate.year}',
@@ -228,27 +238,7 @@ class _ReportsPageState extends State<ReportsPage> {
               color: primaryColor,
               child: reports.isEmpty
                   ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.folder_open,
-                        size: 80,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'No reports found for this month.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                child: Text('No reports for this month.'),
               )
                   : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -258,6 +248,7 @@ class _ReportsPageState extends State<ReportsPage> {
                   return _ReportCard(
                     report: report,
                     isDeleting: isDeleting && deletingIndex == index,
+                    isAdmin: isAdmin,
                     onDelete: () => _deleteReport(report['id'], report['file_path'], index),
                     onOpen: () async {
                       final url = report['file_url'];
@@ -279,7 +270,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
   String _monthName(int month) {
     const months = [
-      '', // padding to make months 1-based
+      '',
       'January',
       'February',
       'March',
@@ -300,6 +291,7 @@ class _ReportsPageState extends State<ReportsPage> {
 class _ReportCard extends StatelessWidget {
   final Map<String, dynamic> report;
   final bool isDeleting;
+  final bool isAdmin;
   final VoidCallback onDelete;
   final VoidCallback onOpen;
 
@@ -307,6 +299,7 @@ class _ReportCard extends StatelessWidget {
     Key? key,
     required this.report,
     required this.isDeleting,
+    required this.isAdmin,
     required this.onDelete,
     required this.onOpen,
   }) : super(key: key);
@@ -316,7 +309,6 @@ class _ReportCard extends StatelessWidget {
     final primaryColor = Colors.blue.shade700;
     return Card(
       elevation: 6,
-      shadowColor: primaryColor.withOpacity(0.25),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: ListTile(
@@ -328,18 +320,15 @@ class _ReportCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.all(12),
-          child: Icon(
-            Icons.insert_drive_file,
-            color: primaryColor,
-            size: 32,
-          ),
+          child: Icon(Icons.insert_drive_file, color: primaryColor, size: 32),
         ),
         title: Text(
           report['name'],
           style: const TextStyle(fontWeight: FontWeight.w600),
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: isDeleting
+        trailing: isAdmin
+            ? (isDeleting
             ? const SizedBox(
           width: 28,
           height: 28,
@@ -348,9 +337,8 @@ class _ReportCard extends StatelessWidget {
             : IconButton(
           icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
           onPressed: onDelete,
-          splashRadius: 24,
-          tooltip: 'Delete report',
-        ),
+        ))
+            : null,
       ),
     );
   }

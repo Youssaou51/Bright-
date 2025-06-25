@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart'; // Import intl for NumberFormat
 
 class FoundationAmountWidget extends StatefulWidget {
   final SupabaseClient supabase;
@@ -57,6 +58,14 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
   @override
   Widget build(BuildContext context) {
     print('Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage');
+    // Format the amount with thousand separators and CFA symbol
+    final numberFormat = NumberFormat.currency(
+      locale: 'fr_XO', // French locale for West Africa (XOF)
+      symbol: 'CFA',
+      decimalDigits: 2, // Two decimal places
+    );
+    final formattedAmount = numberFormat.format(widget.initialAmount);
+
     return SizedBox(
       height: 30,
       child: _isLoading
@@ -64,9 +73,9 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
           : Marquee(
         text: _errorMessage != null
             ? '💰 Fonds non disponibles : $_errorMessage'
-            : '💰 Fonds disponibles : €${widget.initialAmount.toStringAsFixed(2)}',
+            : '💰 Fonds disponibles : $formattedAmount',
         style: GoogleFonts.poppins(
-          color: Colors.blueAccent, // Visible color
+          color: Colors.blueAccent,
           fontWeight: FontWeight.w600,
           fontSize: 16,
         ),
