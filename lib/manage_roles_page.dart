@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 
 class ManageRolesPage extends StatefulWidget {
   final SupabaseClient supabase;
@@ -32,7 +34,7 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading users: $e');
+      if (kDebugMode) dev.log('Error loading users: $e');
       setState(() {
         _isLoading = false;
       });
@@ -58,7 +60,7 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
         SnackBar(content: Text(isActive ? 'Utilisateur activé' : 'Utilisateur désactivé')),
       );
     } catch (e) {
-      print('Error toggling activation: $e');
+      if (kDebugMode) dev.log('Error toggling activation: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de la mise à jour de l\'activation: $e')),
       );
@@ -82,7 +84,7 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
         SnackBar(content: Text('Rôle mis à jour avec succès !')),
       );
     } catch (e) {
-      print('Error updating role: $e');
+      if (kDebugMode) dev.log('Error updating role: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de la mise à jour du rôle: $e')),
       );

@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
 import 'reports_page.dart';
@@ -36,8 +38,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _pageController = PageController();
-    print('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
-    print('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
+    if (kDebugMode) {
+      dev.log('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
+      dev.log('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
+    }
     _checkUserRole(); // Check user role on init
     _loadPosts();
     _loadInitialAmount(); // Load initial amount
@@ -62,13 +66,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
       final userRole = userRoleResponse['role'] as String? ?? 'user';
 
-      print('Rôle récupéré depuis la table users : $userRole');
+      if (kDebugMode) dev.log('Rôle récupéré depuis la table users : $userRole');
 
       setState(() {
         _isAdmin = userRole.toLowerCase() == 'admin';
       });
     } catch (e) {
-      print('Erreur lors de la vérification du rôle utilisateur : $e');
+      if (kDebugMode) dev.log('Erreur lors de la vérification du rôle utilisateur : $e');
       setState(() {
         _isAdmin = false; // On considère par défaut que l'utilisateur n'est pas admin
       });
@@ -83,12 +87,14 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           .select('amount')
           .eq('id', 'foundation-funds')
           .single()
-          .catchError((e) => print('Error loading initial amount: $e'));
+          .catchError((e) {
+            if (kDebugMode) dev.log('Error loading initial amount: $e');
+          });
       setState(() {
         _currentAmount = (response['amount'] as num?)?.toDouble() ?? 0.0;
       });
     } catch (e) {
-      print('Error loading initial amount: $e');
+      if (kDebugMode) dev.log('Error loading initial amount: $e');
       setState(() {
         _currentAmount = 0.0;
       });
@@ -97,7 +103,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
   Future<void> _loadPosts() async {
     try {
-      print('Début du chargement des posts');
+      if (kDebugMode) dev.log('Début du chargement des posts');
       final postsResponse = await _supabase
           .from('posts')
           .select('''
@@ -107,7 +113,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           .order('timestamp', ascending: false)
           .timeout(const Duration(seconds: 5));
 
-      print('Posts response: $postsResponse');
+      if (kDebugMode) dev.log('Posts response: $postsResponse');
 
       final likesResponse = await _supabase
           .from('likes')
@@ -115,7 +121,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           .eq('user_id', widget.currentUser.id)
           .timeout(const Duration(seconds: 5));
 
-      print('Likes response: $likesResponse');
+      if (kDebugMode) dev.log('Likes response: $likesResponse');
 
       final likedPostIds = likesResponse
           .map<String>((like) => like['post_id'] as String)
@@ -131,11 +137,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           return Post.fromJson(postJson);
         }).toList();
         _likedPostIds = likedPostIds;
-        print('Nombre de posts chargés : ${_posts.length}');
+        if (kDebugMode) dev.log('Nombre de posts chargés : ${_posts.length}');
       });
     } catch (e, stackTrace) {
-      print('Erreur lors du chargement des posts : $e');
-      print('Stack trace: $stackTrace');
+      if (kDebugMode) {
+        dev.log('Erreur lors du chargement des posts : $e');
+        dev.log('Stack trace: $stackTrace');
+      }
       String errorMessage = 'Erreur de chargement des posts';
       if (e is SocketException) {
         errorMessage = 'Problème de connexion réseau. Vérifiez votre internet.';
@@ -428,7 +436,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 children: [
                   TextButton(
                     onPressed: () {
-                      print('Update funds dialog cancelled');
+                      if (kDebugMode) dev.log('Update funds dialog cancelled');
                       Navigator.pop(dialogContext);
                     },
                     child: Text(
@@ -441,7 +449,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     onPressed: () async {
                       final enteredAmount = double.tryParse(_controller.text);
                       if (enteredAmount != null && enteredAmount >= 0) {
-                        print('Updating funds to $enteredAmount');
+                        if (kDebugMode) dev.log('Updating funds to $enteredAmount');
                         try {
                           final response = await _supabase.from('funds').upsert({
                             'id': 'foundation-funds',
@@ -449,7 +457,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                             'updated_by': widget.currentUser.username,
                             'updated_at': DateTime.now().toIso8601String(),
                           });
-                          print('Update funds response: $response');
+                          if (kDebugMode) dev.log('Update funds response: $response');
                           setState(() {
                             _currentAmount = enteredAmount;
                           });
@@ -465,7 +473,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                             ),
                           );
                         } catch (error) {
-                          print('Error updating funds: $error');
+                          if (kDebugMode) dev.log('Error updating funds: $error');
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Erreur mise à jour : $error',
@@ -478,7 +486,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                           );
                         }
                       } else {
-                        print('Invalid amount entered');
+                        if (kDebugMode) dev.log('Invalid amount entered');
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Veuillez entrer un montant valide',
@@ -513,7 +521,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         ),
       ),
     ).catchError((error) {
-      print('Error showing update funds dialog: $error');
+      if (kDebugMode) dev.log('Error showing update funds dialog: $error');
     });
   }
 
@@ -589,7 +597,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     supabase: _supabase,
                     initialAmount: _currentAmount,
                     onAmountUpdated: (amount) {
-                      print('Amount updated: $amount');
+                      if (kDebugMode) dev.log('Amount updated: $amount');
                       setState(() {
                         _currentAmount = amount;
                       });

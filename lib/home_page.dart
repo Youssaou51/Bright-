@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'post.dart';
 import 'comments_page.dart';
 import 'user.dart' as AppUser;
@@ -52,12 +54,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           .select('post_id')
           .eq('user_id', widget.currentUser.id)
           .timeout(const Duration(seconds: 5));
-      print('Load initial likes response: $response');
+      if (kDebugMode) dev.log('Load initial likes response: $response');
       setState(() {
         _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
       });
     } catch (e) {
-      print('Error loading initial likes: $e');
+      if (kDebugMode) dev.log('Error loading initial likes: $e');
     }
   }
 
@@ -73,7 +75,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .eq('post_id', post.id)
             .eq('user_id', userId)
             .timeout(const Duration(seconds: 5));
-        print('Delete like for post ${post.id} by user $userId');
+        if (kDebugMode) dev.log('Delete like for post ${post.id} by user $userId');
         setState(() {
           _likedPostIds.remove(post.id);
         });
@@ -82,7 +84,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           'post_id': post.id,
           'user_id': userId,
         }).timeout(const Duration(seconds: 5));
-        print('Insert like for post ${post.id} by user $userId');
+        if (kDebugMode) dev.log('Insert like for post ${post.id} by user $userId');
         setState(() {
           _likedPostIds.add(post.id);
         });
@@ -91,12 +93,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       await Future.delayed(const Duration(seconds: 1));
       try {
         await widget.refreshPosts();
-        print('refreshPosts called successfully');
+        if (kDebugMode) dev.log('refreshPosts called successfully');
       } catch (e) {
-        print('Error refreshing posts: $e');
+        if (kDebugMode) dev.log('Error refreshing posts: $e');
       }
     } catch (e) {
-      print('Error toggling like for post ${post.id}: $e');
+      if (kDebugMode) dev.log('Error toggling like for post ${post.id}: $e');
       String errorMessage = 'Erreur lors du like/désaimage.';
       if (e.toString().contains('violates row-level security policy')) {
         errorMessage = 'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
@@ -161,7 +163,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildPostItem(Post post, int index) {
-    print('Construction du post ${post.id} avec caption: ${post.caption}');
+    if (kDebugMode) dev.log('Construction du post ${post.id} avec caption: ${post.caption}');
     final isLiked = _likedPostIds.contains(post.id);
     final hasImages = post.imageUrls.isNotEmpty;
     final hasVideos = post.videoUrls.isNotEmpty;
