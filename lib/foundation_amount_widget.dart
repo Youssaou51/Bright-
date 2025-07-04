@@ -3,6 +3,8 @@ import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart'; // Import intl for NumberFormat
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 
 class FoundationAmountWidget extends StatefulWidget {
   final SupabaseClient supabase;
@@ -40,14 +42,14 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
           .select('amount')
           .eq('id', 'foundation-funds')
           .single();
-      print('Funds response: $response');
+      if (kDebugMode) dev.log('Funds response: $response');
       final amount = (response['amount'] as num?)?.toDouble() ?? widget.initialAmount;
       widget.onAmountUpdated(amount);
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading funds: $e');
+      if (kDebugMode) dev.log('Error loading funds: $e');
       setState(() {
         _isLoading = false;
         _errorMessage = e.toString();
@@ -57,7 +59,9 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
 
   @override
   Widget build(BuildContext context) {
-    print('Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage');
+    if (kDebugMode) {
+      dev.log('Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage');
+    }
     // Format the amount with thousand separators and CFA symbol
     final numberFormat = NumberFormat.currency(
       locale: 'fr_XO', // French locale for West Africa (XOF)

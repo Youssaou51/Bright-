@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 
 class Task {
   final String id;
@@ -98,7 +100,7 @@ class _TasksPageState extends State<TasksPage> {
         });
       }
     } catch (e) {
-      print('Error loading tasks: $e');
+      if (kDebugMode) dev.log('Error loading tasks: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -138,7 +140,7 @@ class _TasksPageState extends State<TasksPage> {
       setState(() {
         task.isCompleted = wasCompleted;
       });
-      print('Erreur : $e');
+      if (kDebugMode) dev.log('Erreur : $e');
       _showErrorSnackBar('Échec de la mise à jour.');
     }
   }
@@ -159,7 +161,7 @@ class _TasksPageState extends State<TasksPage> {
         _tasks.remove(task);
       });
     } catch (e) {
-      print('Erreur suppression : $e');
+      if (kDebugMode) dev.log('Erreur suppression : $e');
     }
   }
 
@@ -230,7 +232,7 @@ class _TasksPageState extends State<TasksPage> {
                               await _loadTasks();
                             }
                           } catch (e) {
-                            print('Error adding task: $e');
+                            if (kDebugMode) dev.log('Error adding task: $e');
                           }
 
                           if (mounted) Navigator.of(context).pop();
