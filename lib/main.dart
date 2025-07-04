@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'welcome_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
@@ -37,9 +39,9 @@ void main() async {
           'username': user.email?.split('@')[0] ?? 'Anonymous',
           'profile_picture': '',
         });
-        print('✅ Nouvel utilisateur ajouté : ${user.email}');
+        if (kDebugMode) dev.log('✅ Nouvel utilisateur ajouté : ${user.email}');
       } else {
-        print('👤 Utilisateur existant : ${user.email}');
+        if (kDebugMode) dev.log('👤 Utilisateur existant : ${user.email}');
       }
     }
   });
@@ -141,7 +143,7 @@ class _MyAppState extends State<MyApp> {
             posts: [],
             currentUser: currentUser,
             refreshPosts: () async {
-              print('🔄 Rafraîchissement des posts...');
+              if (kDebugMode) dev.log('🔄 Rafraîchissement des posts...');
             },
             likedPostIds: <String>{},
           );

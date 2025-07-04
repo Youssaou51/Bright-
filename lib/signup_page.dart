@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import 'dashboard_page.dart';
 import 'user.dart' as local; // Alias for your local User class
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 
 class SignupPage extends StatefulWidget {
   @override
@@ -166,7 +168,7 @@ class _SignupPageState extends State<SignupPage> {
                   SizedBox(height: 20),
                   TextButton(
                     onPressed: () {
-                      print("Terms and Conditions pressed");
+                      if (kDebugMode) dev.log("Terms and Conditions pressed");
                     },
                     child: Text(
                       'By signing up, you agree to our Terms & Conditions',

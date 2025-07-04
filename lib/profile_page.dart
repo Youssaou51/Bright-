@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'user.dart' as localUser;
 import 'manage_roles_page.dart'; // Import the ManageRolesPage
 
@@ -49,10 +51,10 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
   Future<void> _checkUserRoleAndNavigateCheckOnly() async {
     final user = _supabase.auth.currentUser;
-    print('Dashboard - Checking role for user: ${user?.id}');
+    if (kDebugMode) dev.log('Dashboard - Checking role for user: ${user?.id}');
 
     if (user == null) {
-      print('Dashboard - No authenticated user');
+      if (kDebugMode) dev.log('Dashboard - No authenticated user');
       setState(() => _isAdmin = false);
       return;
     }
@@ -64,19 +66,21 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
           .eq('id', user.id)
           .single();
       final role = (response['role'] as String?)?.toLowerCase() ?? 'user';
-      print('Dashboard - Role retrieved: $role for user id: ${user.id}');
+      if (kDebugMode) dev.log('Dashboard - Role retrieved: $role for user id: ${user.id}');
       setState(() {
         _isAdmin = role == 'admin';
       });
     } catch (e) {
-      print('Dashboard - Error checking user role: $e, Stack trace: ${StackTrace.current}');
+      if (kDebugMode) {
+        dev.log('Dashboard - Error checking user role: $e, Stack trace: ${StackTrace.current}');
+      }
       setState(() => _isAdmin = false);
     }
   }
 
   Future<void> _loadProfile() async {
     try {
-      print('Dashboard - Loading profile for user id: ${widget.currentUser?.id}');
+      if (kDebugMode) dev.log('Dashboard - Loading profile for user id: ${widget.currentUser?.id}');
       final response = await _supabase
           .from('users')
           .select('username, pseudo, profile_picture')
@@ -88,7 +92,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         _profilePictureUrl = response['profile_picture'] as String?;
       });
     } catch (e) {
-      print('Dashboard - Error loading profile: $e, Stack trace: ${StackTrace.current}');
+      if (kDebugMode) {
+        dev.log('Dashboard - Error loading profile: $e, Stack trace: ${StackTrace.current}');
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur de chargement du profil : $e'), backgroundColor: Colors.redAccent),
       );
@@ -150,7 +156,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     try {
       if (_profilePictureUrl != null && _isValidUrl(_profilePictureUrl!)) {
         final oldFileName = _profilePictureUrl!.split('/').last;
-        await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) => print('Dashboard - Error removing old image: $e'));
+        await _supabase.storage.from('profiles').remove([oldFileName]).catchError((e) {
+          if (kDebugMode) dev.log('Dashboard - Error removing old image: $e');
+        });
       }
 
       await _supabase.storage.from('profiles').upload(fileName, file);
@@ -180,7 +188,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         const SnackBar(content: Text('Photo de profil mise à jour !')),
       );
     } catch (e) {
-      print('Dashboard - Error uploading profile picture: $e');
+      if (kDebugMode) dev.log('Dashboard - Error uploading profile picture: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur lors de la mise à jour de la photo : $e'), backgroundColor: Colors.redAccent),
       );
@@ -334,7 +342,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         Navigator.pushReplacementNamed(context, '/');
       }
     } catch (e) {
-      print('Dashboard - Sign-out error: $e');
+      if (kDebugMode) dev.log('Dashboard - Sign-out error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur de déconnexion : $e'), backgroundColor: Colors.redAccent),
       );
@@ -380,7 +388,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    print('Dashboard - Building ProfilePage - isAdmin: $_isAdmin, isLoading: $_isLoading');
+    if (kDebugMode) {
+      dev.log('Dashboard - Building ProfilePage - isAdmin: $_isAdmin, isLoading: $_isLoading');
+    }
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: _isLoading
@@ -429,7 +439,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                                 : const AssetImage('assets/default_profile.png') as ImageProvider,
                             onBackgroundImageError: _isValidUrl(_profilePictureUrl)
                                 ? (exception, stackTrace) {
-                              print('Dashboard - Error loading profile picture: $exception');
+                              if (kDebugMode) {
+                                dev.log('Dashboard - Error loading profile picture: $exception');
+                              }
                             }
                                 : null,
                           ),
@@ -454,7 +466,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 IconButton(
                   icon: Icon(Icons.settings, color: Colors.white, size: 28),
                   onPressed: () {
-                    print('Dashboard - Navigating to ManageRolesPage');
+                    if (kDebugMode) dev.log('Dashboard - Navigating to ManageRolesPage');
                     Navigator.push(
                       context,
                       MaterialPageRoute(
