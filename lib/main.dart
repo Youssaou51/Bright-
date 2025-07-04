@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'welcome_page.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
@@ -16,7 +17,9 @@ void main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
   );
 
-  // Ajout automatique de l'utilisateur dans la table 'users' après connexion
+  // Supprime la session automatiquement au démarrage
+  await Supabase.instance.client.auth.signOut();
+
   Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
     final event = data.event;
     final session = data.session;
@@ -47,57 +50,11 @@ void main() async {
   runApp(MyApp());
 }
 
-class MyApp extends StatefulWidget {
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
+class MyApp extends StatelessWidget {
   final SupabaseClient _supabase = Supabase.instance.client;
-  bool _isLoading = true;
-  bool _isLoggedIn = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkSession();
-    // Écoute les changements d'auth pour mettre à jour l'état de connexion
-    _supabase.auth.onAuthStateChange.listen((data) {
-      final event = data.event;
-      setState(() {
-        _isLoggedIn = event == AuthChangeEvent.signedIn;
-      });
-    });
-  }
-
-  void _checkSession() async {
-    final session = _supabase.auth.currentSession;
-    setState(() {
-      _isLoggedIn = session != null;
-      _isLoading = false;
-    });
-
-    if (session != null) {
-      // User is logged in, navigate to HomePage
-      // Ensure context is available before navigating
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-
     return MaterialApp(
       title: 'BFF',
       debugShowCheckedModeBanner: false,
@@ -123,35 +80,34 @@ class _MyAppState extends State<MyApp> {
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      // Conditionally set initialRoute based on login state
-      initialRoute: _isLoggedIn ? '/home' : '/',
+      initialRoute: '/', // Toujours rediriger vers WelcomePage au lancement
       routes: {
         '/': (context) => WelcomePage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
         '/home': (context) {
           final user = _supabase.auth.currentUser;
+          if (user == null) return WelcomePage(); // Sécurité
           final currentUser = local.User(
-            id: user?.id ?? '',
-            username: user?.email?.split('@')[0] ?? 'User',
-            pseudo: user?.email ?? 'user@bff.com',
+            id: user.id,
+            username: user.email?.split('@')[0] ?? 'User',
+            pseudo: user.email ?? 'user@bff.com',
             imageUrl: "https://via.placeholder.com/150",
           );
           return HomePage(
             posts: [],
             currentUser: currentUser,
-            refreshPosts: () async {
-              print('🔄 Rafraîchissement des posts...');
-            },
+            refreshPosts: () async {},
             likedPostIds: <String>{},
           );
         },
         '/profile': (context) {
           final user = _supabase.auth.currentUser;
+          if (user == null) return WelcomePage(); // Sécurité
           final currentUser = local.User(
-            id: user?.id ?? '',
-            username: user?.email?.split('@')[0] ?? 'User',
-            pseudo: user?.email ?? 'user@bff.com',
+            id: user.id,
+            username: user.email?.split('@')[0] ?? 'User',
+            pseudo: user.email ?? 'user@bff.com',
             imageUrl: "https://via.placeholder.com/150",
           );
           return ProfilePage(currentUser: currentUser);

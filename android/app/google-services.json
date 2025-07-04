@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "699911628727",
+    "project_id": "bright-6a53c",
+    "storage_bucket": "bright-6a53c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:699911628727:android:239b1ac4ec909a8ba12a32",
+        "android_client_info": {
+          "package_name": "com.example.bright"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg4KXWWJ6g0FN8r1b0IT7BkFJD7zV_yT0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

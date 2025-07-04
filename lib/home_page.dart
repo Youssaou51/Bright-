@@ -11,17 +11,19 @@ import 'comments_page.dart';
 import 'user.dart' as AppUser;
 
 class HomePage extends StatefulWidget {
+  // These properties are kept as they are part of your existing API,
+  // even if 'posts' and 'likedPostIds' are now primarily managed internally.
   final List<Post> posts;
   final AppUser.User currentUser;
-  final Future<void> Function() refreshPosts;
+  final Future<void> Function() refreshPosts; // Still used for the RefreshIndicator
   final Set<String> likedPostIds;
 
   const HomePage({
     Key? key,
-    required this.posts,
+    required this.posts, // Will be ignored, but kept for API consistency
     required this.currentUser,
-    required this.likedPostIds,
-    required this.refreshPosts,
+    required this.likedPostIds, // Will be used as initial state for _likedPostIds
+    required this.refreshPosts, // Still called on pull-to-refresh
   }) : super(key: key);
 
   @override
@@ -30,6 +32,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late SupabaseClient _supabase;
+  List<Post> _posts = []; // <-- This will hold the fetched posts
+  bool _isLoading = true; // State for loading indicator
+  String? _errorMessage; // State for displaying errors
+
   late Set<String> _likedPostIds;
   late AnimationController _animationController;
 
@@ -37,13 +43,74 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _supabase = Supabase.instance.client;
-    _likedPostIds = Set.from(widget.likedPostIds);
+    _likedPostIds = Set.from(widget.likedPostIds); // Initialize with passed likes
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _loadInitialLikes();
+    timeago.setLocaleMessages('fr', timeago.FrMessages()); // Set French locale for timeago
+
+    // --- CRUCIAL: Fetch posts when the page initializes ---
+    _fetchPosts();
+    // -----------------------------------------------------
+
+    _loadInitialLikes(); // Load initial likes for the current user
   }
+
+  // --- NEW: Method to fetch posts from Supabase ---
+  Future<void> _fetchPosts() async {
+    print('🔄 Starting to fetch posts...');
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // This query retrieves posts along with their aggregated like and comment counts.
+      // Ensure your Supabase RLS policies allow SELECT on 'posts', 'likes', and 'comments'.
+      final List<Map<String, dynamic>> response = await _supabase
+          .from('posts')
+          .select('''
+            *,
+            likes_count:likes(count),
+            comment_count:comments(count)
+          ''')
+          .order('timestamp', ascending: false)
+          .limit(50); // Optional: Limit the number of posts fetched
+
+      print('✅ Raw posts response: $response');
+
+      final List<Post> fetchedPosts = response.map((data) {
+        // Extract the aggregated counts, handling potential nulls or empty lists
+        final int likesCount = (data['likes_count'] as List?)?.isNotEmpty == true
+            ? data['likes_count'][0]['count'] as int
+            : 0;
+        final int commentCount = (data['comment_count'] as List?)?.isNotEmpty == true
+            ? data['comment_count'][0]['count'] as int
+            : 0;
+
+        // Create a mutable copy to inject counts directly for the Post.fromJson
+        final Map<String, dynamic> postData = Map.from(data);
+        postData['likes_count'] = likesCount;
+        postData['comment_count'] = commentCount;
+
+        return Post.fromJson(postData);
+      }).toList();
+
+      setState(() {
+        _posts = fetchedPosts; // Update the internal posts list
+        _isLoading = false;
+      });
+      print('✅ Posts fetched successfully. Count: ${_posts.length}');
+    } catch (e) {
+      print('❌ Error fetching posts: $e');
+      setState(() {
+        _errorMessage = 'Impossible de charger les posts. Veuillez vérifier votre connexion.';
+        _isLoading = false;
+      });
+    }
+  }
+  // ---------------------------------------------------
 
   Future<void> _loadInitialLikes() async {
     try {
@@ -63,10 +130,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Future<void> _toggleLike(Post post) async {
     final userId = widget.currentUser.id;
-    final isLiked = _likedPostIds.contains(post.id);
+    final isCurrentlyLiked = _likedPostIds.contains(post.id);
+
+    // Optimistic UI update for better responsiveness
+    setState(() {
+      if (isCurrentlyLiked) {
+        _likedPostIds.remove(post.id);
+        post.likesCount--; // Decrement locally
+      } else {
+        _likedPostIds.add(post.id);
+        post.likesCount++; // Increment locally
+      }
+    });
+
+    _animationController.forward(from: 0);
 
     try {
-      if (isLiked) {
+      if (isCurrentlyLiked) {
         await _supabase
             .from('likes')
             .delete()
@@ -74,30 +154,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .eq('user_id', userId)
             .timeout(const Duration(seconds: 5));
         print('Delete like for post ${post.id} by user $userId');
-        setState(() {
-          _likedPostIds.remove(post.id);
-        });
       } else {
         await _supabase.from('likes').insert({
           'post_id': post.id,
           'user_id': userId,
         }).timeout(const Duration(seconds: 5));
         print('Insert like for post ${post.id} by user $userId');
-        setState(() {
-          _likedPostIds.add(post.id);
-        });
       }
-      _animationController.forward(from: 0);
-      await Future.delayed(const Duration(seconds: 1));
-      try {
-        await widget.refreshPosts();
-        print('refreshPosts called successfully');
-      } catch (e) {
-        print('Error refreshing posts: $e');
-      }
+      // After successful operation, you might want to refresh the specific post
+      // or trigger a full fetch to ensure data consistency, especially if other
+      // users can also like the same post.
+      // For now, the optimistic update is combined with a full fetch on refresh.
+      // await _fetchPosts(); // Uncomment if you want a full re-fetch after each like/unlike
     } catch (e) {
       print('Error toggling like for post ${post.id}: $e');
-      String errorMessage = 'Erreur lors du like/désaimage.';
+      String errorMessage = 'Erreur lors du like/désaimage. Veuillez réessayer.';
       if (e.toString().contains('violates row-level security policy')) {
         errorMessage = 'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
       } else if (e.toString().contains('foreign key constraint') || e.toString().contains('23503')) {
@@ -109,18 +180,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           backgroundColor: Colors.redAccent,
         ),
       );
+      // Revert optimistic update if the operation failed
       setState(() {
-        if (isLiked) {
+        if (isCurrentlyLiked) {
           _likedPostIds.add(post.id);
+          post.likesCount++;
         } else {
           _likedPostIds.remove(post.id);
+          post.likesCount--;
         }
       });
     }
   }
 
-  void _showCommentsPage(Post post) {
-    showModalBottomSheet(
+  void _showCommentsPage(Post post) async {
+    // Navigate to comments page and potentially get an updated comment count back
+    final updatedCommentCount = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -129,6 +204,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       ),
       builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
     );
+
+    // If the comment count changed, update it locally
+    if (updatedCommentCount != null && updatedCommentCount != post.commentCount) {
+      setState(() {
+        post.commentCount = updatedCommentCount;
+      });
+    }
   }
 
   void _showMediaViewer(BuildContext context, List<String> media, int initialIndex, bool isVideo) {
@@ -189,7 +271,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               leading: CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: post.profilePicture != null ? NetworkImage(post.profilePicture!) : null,
+                // Fallback to a default asset image if profilePicture is null or empty
+                backgroundImage: (post.profilePicture != null && post.profilePicture!.isNotEmpty)
+                    ? NetworkImage(post.profilePicture!)
+                    : const AssetImage('assets/default_profile.png') as ImageProvider<Object>?, // Make sure this asset exists
                 onBackgroundImageError: (_, __) => const Icon(Icons.person, color: Colors.grey),
               ),
               title: Text(
@@ -249,7 +334,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       child: ClipRRect(
                         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                         child: SizedBox(
-                          height: 400, // Ajusté pour une vidéo verticale
+                          height: 400, // Adjusted for vertical video
                           child: ChewieVideoWidget(url: post.videoUrls[0], forceVertical: true),
                         ),
                       ),
@@ -338,7 +423,28 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final sortedPosts = [...widget.posts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    // Use the internally managed _posts list
+    final sortedPosts = [..._posts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_errorMessage!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _fetchPosts, // Retry fetching posts
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (sortedPosts.isEmpty) {
       return Center(
@@ -351,7 +457,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: widget.refreshPosts,
+              onPressed: _fetchPosts, // Trigger refresh using internal method
               child: const Text('Rafraîchir'),
             ),
           ],
@@ -360,7 +466,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
 
     return RefreshIndicator(
-      onRefresh: widget.refreshPosts,
+      onRefresh: _fetchPosts, // Pull-to-refresh will call our internal fetch
       color: const Color(0xFF1E88E5),
       backgroundColor: Colors.white,
       child: ListView.builder(
@@ -379,7 +485,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 }
 
-// Custom FadeIn widget for post animation
+// Custom FadeIn widget for post animation (no change)
 class FadeIn extends StatefulWidget {
   final Widget child;
   final Duration delay;
@@ -422,7 +528,7 @@ class _FadeInState extends State<FadeIn> with SingleTickerProviderStateMixin {
   }
 }
 
-// Full-screen media viewer (images or videos)
+// Full-screen media viewer (images or videos) (no change)
 class MediaViewer extends StatefulWidget {
   final List<String> media;
   final int initialIndex;
@@ -513,7 +619,7 @@ class _MediaViewerState extends State<MediaViewer> {
   }
 }
 
-// Video player widget with Chewie
+// Video player widget with Chewie (improved initialization)
 class ChewieVideoWidget extends StatefulWidget {
   final String url;
   final bool forceVertical;
@@ -526,37 +632,53 @@ class ChewieVideoWidget extends StatefulWidget {
 
 class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
   late VideoPlayerController _videoPlayerController;
-  late ChewieController _chewieController;
+  ChewieController? _chewieController; // Made nullable for delayed initialization
 
   @override
   void initState() {
     super.initState();
     _videoPlayerController = VideoPlayerController.network(widget.url);
-    _chewieController = ChewieController(
-      videoPlayerController: _videoPlayerController,
-      aspectRatio: widget.forceVertical ? 9 / 16 : null,
-      autoPlay: true,
-      looping: true,
-      showControls: false,
-    );
     _videoPlayerController.initialize().then((_) {
-      setState(() {});
+      if (mounted) { // Check if the widget is still in the tree
+        setState(() {
+          _chewieController = ChewieController(
+            videoPlayerController: _videoPlayerController,
+            aspectRatio: widget.forceVertical ? 9 / 16 : _videoPlayerController.value.aspectRatio, // Use video's aspect ratio if not forced vertical
+            autoPlay: true,
+            looping: true,
+            showControls: true, // Typically, you want controls for a full-screen viewer
+          );
+        });
+      }
+    }).catchError((error) {
+      print('Error initializing video: $error');
+      // Handle video load error, e.g., show an error icon
+      if (mounted) {
+        setState(() {
+          // You could set an error flag here to display a message
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     _videoPlayerController.dispose();
-    _chewieController.dispose();
+    _chewieController?.dispose(); // Dispose only if initialized
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return _videoPlayerController.value.isInitialized
+    return _chewieController != null && _videoPlayerController.value.isInitialized
         ? Chewie(
-      controller: _chewieController,
+      controller: _chewieController!,
     )
-        : const Center(child: CircularProgressIndicator());
+        : Container(
+      color: Colors.black, // Dark background while loading video
+      child: const Center(
+        child: CircularProgressIndicator(color: Colors.white), // White spinner on black background
+      ),
+    );
   }
 }

@@ -32,15 +32,30 @@ class _SignupPageState extends State<SignupPage> {
         final userId = user.id;
         final supabase = Supabase.instance.client;
 
-        // Insert user into the custom 'users' table
+        // Insert user into 'users' table with is_active = false
         await supabase.from('users').insert({
           'id': userId,
           'username': _usernameController.text.trim(),
           'profile_picture': "https://via.placeholder.com/150",
           'is_active': false,
+          'role': 'user', // optional if you use roles
         });
 
-        // ✅ Notify and return to login instead of auto-login
+        // 🔔 Notify all admins
+        final admins = await supabase
+            .from('users')
+            .select('id')
+            .eq('role', 'admin');
+
+        for (final admin in admins) {
+          await supabase.from('notifications').insert({
+            'user_id': admin['id'],
+            'title': '🆕 New Account Request',
+            'message': '${_usernameController.text.trim()} just signed up. Please review and activate the account.',
+          });
+        }
+
+        // ✅ Inform the user
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Your account has been created. Please wait for admin approval.'),
@@ -48,10 +63,9 @@ class _SignupPageState extends State<SignupPage> {
           ),
         );
 
-        Navigator.pop(context); // 👈 Optional: go back to LoginPage
+        Navigator.pop(context); // Go back to login
       }
     } catch (e) {
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error signing up: $e')),
       );
@@ -61,6 +75,7 @@ class _SignupPageState extends State<SignupPage> {
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
