@@ -70,12 +70,22 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _checkSession() {
+  void _checkSession() async {
     final session = _supabase.auth.currentSession;
     setState(() {
       _isLoggedIn = session != null;
       _isLoading = false;
     });
+
+    if (session != null) {
+      // User is logged in, navigate to HomePage
+      // Ensure context is available before navigating
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      });
+    }
   }
 
   @override
@@ -113,7 +123,8 @@ class _MyAppState extends State<MyApp> {
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      initialRoute: '/',
+      // Conditionally set initialRoute based on login state
+      initialRoute: _isLoggedIn ? '/home' : '/',
       routes: {
         '/': (context) => WelcomePage(),
         '/login': (context) => LoginPage(),
