@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:google_fonts/google_fonts.dart';
 import 'comment.dart';
 import 'post.dart';
 import 'user.dart' as AppUser;
@@ -137,15 +138,15 @@ class _CommentsPageState extends State<CommentsPage> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Supprimer ce commentaire ?'),
-        content: const Text('Cette action est irréversible.'),
+        title: Text('Supprimer ce commentaire ?', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        content: Text('Cette action est irréversible.', style: GoogleFonts.poppins()),
         actions: [
           TextButton(
-            child: const Text('Annuler'),
+            child: Text('Annuler', style: GoogleFonts.poppins(color: Color(0xFF1976D2))),
             onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+            child: Text('Supprimer', style: GoogleFonts.poppins(color: Colors.red)),
             onPressed: () {
               Navigator.of(context).pop();
               _deleteComment(comment.id as String);
@@ -166,7 +167,7 @@ class _CommentsPageState extends State<CommentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       body: DraggableScrollableSheet(
         initialChildSize: 0.9,
         minChildSize: 0.5,
@@ -192,21 +193,21 @@ class _CommentsPageState extends State<CommentsPage> {
                     ),
                   ),
                 ),
-                const Text(
+                Text(
                   'Commentaires',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 const Divider(),
                 Expanded(
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
                       : _error != null
-                      ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+                      ? Center(child: Text(_error!, style: GoogleFonts.poppins(color: Colors.red)))
                       : _comments.isEmpty
-                      ? const Center(
+                      ? Center(
                     child: Text(
                       'Aucun commentaire pour l\'instant',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
                     ),
                   )
                       : ListView.builder(
@@ -243,7 +244,7 @@ class _CommentsPageState extends State<CommentsPage> {
                                       children: [
                                         Text(
                                           comment.username,
-                                          style: const TextStyle(
+                                          style: GoogleFonts.poppins(
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
                                           ),
@@ -251,7 +252,7 @@ class _CommentsPageState extends State<CommentsPage> {
                                         const SizedBox(width: 8),
                                         Text(
                                           timeago.format(comment.createdAt, locale: 'fr'),
-                                          style: TextStyle(
+                                          style: GoogleFonts.poppins(
                                             color: Colors.grey.shade600,
                                             fontSize: 12,
                                           ),
@@ -261,7 +262,7 @@ class _CommentsPageState extends State<CommentsPage> {
                                     const SizedBox(height: 4),
                                     Text(
                                       comment.content,
-                                      style: const TextStyle(fontSize: 14),
+                                      style: GoogleFonts.poppins(fontSize: 14),
                                     ),
                                   ],
                                 ),
@@ -287,6 +288,8 @@ class _CommentsPageState extends State<CommentsPage> {
                                 borderRadius: BorderRadius.circular(20),
                                 borderSide: BorderSide(color: Colors.grey.shade300),
                               ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             ),
                           ),

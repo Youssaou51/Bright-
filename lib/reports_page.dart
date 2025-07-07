@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -135,7 +136,7 @@ class _ReportsPageState extends State<ReportsPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(message, style: GoogleFonts.poppins()),
           backgroundColor: Colors.red,
         ),
       );
@@ -146,7 +147,7 @@ class _ReportsPageState extends State<ReportsPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(message, style: GoogleFonts.poppins()),
           backgroundColor: Colors.green,
         ),
       );
@@ -169,28 +170,21 @@ class _ReportsPageState extends State<ReportsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = Colors.blue.shade700;
-
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(
-          'Reports',
-          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Reports', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.black87,
+        backgroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
         onPressed: _uploadReport,
-        label: const Text('Upload'),
+        label: Text('Upload', style: GoogleFonts.poppins(color: Colors.white)),
         icon: const Icon(Icons.upload_file),
-        backgroundColor: primaryColor,
+        backgroundColor: Color(0xFF1976D2),
       )
           : null,
       body: Column(
@@ -199,14 +193,14 @@ class _ReportsPageState extends State<ReportsPage> {
             onTap: _selectDate,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+              margin: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.grey.shade100,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -215,13 +209,13 @@ class _ReportsPageState extends State<ReportsPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.calendar_today, color: primaryColor),
+                  Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
                   const SizedBox(width: 12),
                   Text(
                     '${_monthName(selectedDate.month)} ${selectedDate.year}',
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
-                      color: primaryColor,
+                      color: Color(0xFF1976D2),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -232,16 +226,16 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
                 : RefreshIndicator(
               onRefresh: _fetchReports,
-              color: primaryColor,
+              color: Color(0xFF1976D2),
               child: reports.isEmpty
                   ? Center(
-                child: Text('No reports for this month.'),
+                child: Text('No reports for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
               )
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 itemCount: reports.length,
                 itemBuilder: (context, index) {
                   final report = reports[index];
@@ -306,33 +300,33 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Colors.blue.shade700;
     return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: ListTile(
         onTap: onOpen,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         leading: Container(
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
+            color: Color(0xFF1976D2).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.all(12),
-          child: Icon(Icons.insert_drive_file, color: primaryColor, size: 32),
+          padding: const EdgeInsets.all(10),
+          child: Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 28),
         ),
         title: Text(
           report['name'],
-          style: const TextStyle(fontWeight: FontWeight.w600),
-          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis, // Moved overflow here
+          maxLines: 1, // Added to limit to one line
         ),
         trailing: isAdmin
             ? (isDeleting
             ? const SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(strokeWidth: 3),
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF1976D2)),
         )
             : IconButton(
           icon: Icon(Icons.delete_outline, color: Colors.red.shade400),

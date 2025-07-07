@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'user.dart' as localUser;
-import 'manage_roles_page.dart'; // Import the ManageRolesPage
+import 'manage_roles_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final localUser.User? currentUser;
-  final Future<void> Function()? refreshPosts; // Ajout de la fonction de rechargement
+  final Future<void> Function()? refreshPosts;
 
   const ProfilePage({Key? key, this.currentUser, this.refreshPosts}) : super(key: key);
 
@@ -23,8 +24,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   final SupabaseClient _supabase = Supabase.instance.client;
   late AnimationController _controller;
   late Animation<double> _animation;
-  bool _isAdmin = false; // Track if the user is an admin
-  bool _isLoading = true; // Track loading state
+  bool _isAdmin = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       setState(() {
         _isLoading = false;
       });
-    }); // Ensure role check completes before rendering
+    });
     _loadProfile();
   }
 
@@ -88,7 +89,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
         _profilePictureUrl = response['profile_picture'] as String?;
       });
     } catch (e) {
-      print('Dashboard - Error loading profile: $e, Stack trace: ${StackTrace.current}');
+      print('Dashboard - Error loading profile: $e, StackTrace: ${StackTrace.current}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur de chargement du profil : $e'), backgroundColor: Colors.redAccent),
       );
@@ -109,8 +110,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo_library, color: Colors.blue),
-                title: const Text('Choisir dans la galerie', style: TextStyle(fontFamily: 'Roboto')),
+                leading: const Icon(Icons.photo_library, color: Color(0xFF1976D2)),
+                title: Text('Choisir dans la galerie', style: GoogleFonts.poppins()),
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -120,8 +121,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.blue),
-                title: const Text('Prendre une photo', style: TextStyle(fontFamily: 'Roboto')),
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF1976D2)),
+                title: Text('Prendre une photo', style: GoogleFonts.poppins()),
                 onTap: () async {
                   Navigator.pop(context);
                   final pickedFile = await _picker.pickImage(source: ImageSource.camera);
@@ -210,14 +211,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
             ),
             const SizedBox(height: 20),
-            const Text('Changer le nom d’utilisateur', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+            Text('Changer le nom d’utilisateur', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             TextField(
               controller: usernameController,
               decoration: InputDecoration(
                 hintText: 'Nouveau nom d’utilisateur',
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: Colors.grey[50],
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
             ),
@@ -247,12 +248,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[600],
+                backgroundColor: Color(0xFF1976D2),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
-              child: const Text('Enregistrer', style: TextStyle(fontSize: 16, fontFamily: 'Roboto')),
+              child: Text('Enregistrer', style: GoogleFonts.poppins(fontSize: 16)),
             ),
           ],
         ),
@@ -283,14 +285,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
               decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(10)),
             ),
             const SizedBox(height: 20),
-            const Text('Changer le pseudo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Poppins')),
+            Text('Changer le pseudo', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             TextField(
               controller: pseudoController,
               decoration: InputDecoration(
                 hintText: 'Nouveau pseudo',
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: Colors.grey[50],
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
             ),
@@ -314,12 +316,13 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[600],
+                backgroundColor: Color(0xFF1976D2),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(50),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
-              child: const Text('Enregistrer', style: TextStyle(fontSize: 16, fontFamily: 'Roboto')),
+              child: Text('Enregistrer', style: GoogleFonts.poppins(fontSize: 16)),
             ),
           ],
         ),
@@ -358,18 +361,14 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
       child: ScaleTransition(
         scale: _animation,
         child: Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.symmetric(vertical: 8),
           child: ListTile(
-            leading: Icon(icon, color: Colors.blue[600], size: 28),
+            leading: Icon(icon, color: Color(0xFF1976D2), size: 28),
             title: Text(
               title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                fontFamily: 'Roboto',
-              ),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             onTap: onTap,
           ),
@@ -382,29 +381,24 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     print('Dashboard - Building ProfilePage - isAdmin: $_isAdmin, isLoading: $_isLoading');
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
           : CustomScrollView(
         slivers: [
           SliverAppBar(
             leading: null,
             automaticallyImplyLeading: false,
-            expandedHeight: 200,
+            expandedHeight: 250,
             floating: false,
             pinned: true,
             backgroundColor: Colors.white,
+            elevation: 2,
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF1E88E5), Color(0xFF42A5F5)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Center(
-                  child: GestureDetector(
+              background: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
                     onTap: _changeProfilePicture,
                     child: Stack(
                       alignment: Alignment.bottomRight,
@@ -412,18 +406,18 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                         Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
+                            border: Border.all(color: Colors.grey[300]!, width: 4),
                             boxShadow: const [
                               BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
+                                color: Colors.black12,
+                                blurRadius: 10,
+                                offset: Offset(0, 6),
                               ),
                             ],
                           ),
                           child: CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Colors.grey[300],
+                            radius: 70,
+                            backgroundColor: Colors.grey[200],
                             backgroundImage: _isValidUrl(_profilePictureUrl)
                                 ? NetworkImage(_profilePictureUrl!)
                                 : const AssetImage('assets/default_profile.png') as ImageProvider,
@@ -435,24 +429,30 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(10),
                           decoration: const BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                            boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black26)],
                           ),
-                          child: const Icon(Icons.camera_alt, size: 20, color: Colors.blue),
+                          child: const Icon(Icons.camera_alt, size: 24, color: Color(0xFF1976D2)),
                         ),
                       ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  Container(
+                    height: 2,
+                    width: 80,
+                    color: Color(0xFF1976D2).withOpacity(0.3),
+                  ),
+                ],
               ),
             ),
             actions: [
               if (_isAdmin)
                 IconButton(
-                  icon: Icon(Icons.settings, color: Colors.white, size: 28),
+                  icon: Icon(Icons.settings, color: Color(0xFF1976D2), size: 30),
                   onPressed: () {
                     print('Dashboard - Navigating to ManageRolesPage');
                     Navigator.push(
@@ -474,21 +474,12 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                 children: [
                   Text(
                     _username,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Poppins',
-                      color: Colors.black87,
-                    ),
+                    style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w600, color: Colors.black87),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     _pseudo.isEmpty ? 'Ajouter un pseudo' : '@$_pseudo',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                      fontFamily: 'Roboto',
-                    ),
+                    style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 32),
                   const Text(
@@ -514,9 +505,9 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.logout, size: 24),
-                    label: const Text(
+                    label: Text(
                       'Déconnexion',
-                      style: TextStyle(fontSize: 16, fontFamily: 'Roboto'),
+                      style: GoogleFonts.poppins(fontSize: 16),
                     ),
                     onPressed: _signOut,
                     style: ElevatedButton.styleFrom(
@@ -524,9 +515,8 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 5,
+                      elevation: 3,
                       minimumSize: const Size(double.infinity, 56),
-                      overlayColor: Colors.white.withOpacity(0.2),
                     ),
                   ),
                 ],

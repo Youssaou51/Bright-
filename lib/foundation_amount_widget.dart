@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart'; // Import intl for NumberFormat
+import 'package:intl/intl.dart';
 
 class FoundationAmountWidget extends StatefulWidget {
   final SupabaseClient supabase;
@@ -58,24 +58,35 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
   @override
   Widget build(BuildContext context) {
     print('Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage');
-    // Format the amount with thousand separators and CFA symbol
     final numberFormat = NumberFormat.currency(
-      locale: 'fr_XO', // French locale for West Africa (XOF)
+      locale: 'fr_XO',
       symbol: 'CFA',
-      decimalDigits: 2, // Two decimal places
+      decimalDigits: 2,
     );
     final formattedAmount = numberFormat.format(widget.initialAmount);
 
-    return SizedBox(
-      height: 30,
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: _isLoading
-          ? Center(child: CircularProgressIndicator(color: Colors.blueAccent))
+          ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
           : Marquee(
         text: _errorMessage != null
             ? '💰 Fonds non disponibles : $_errorMessage'
             : '💰 Fonds disponibles : $formattedAmount',
         style: GoogleFonts.poppins(
-          color: Colors.blueAccent,
+          color: Color(0xFF1976D2),
           fontWeight: FontWeight.w600,
           fontSize: 16,
         ),
@@ -83,7 +94,7 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
         crossAxisAlignment: CrossAxisAlignment.center,
         blankSpace: 20.0,
         velocity: 50.0,
-        pauseAfterRound: Duration(seconds: 1),
+        pauseAfterRound: const Duration(seconds: 1),
       ),
     );
   }

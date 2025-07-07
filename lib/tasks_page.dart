@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class Task {
   final String id;
@@ -8,8 +9,6 @@ class Task {
   DateTime dueDate;
   bool isCompleted;
   final Priority priority;
-
-
 
   Task({
     required this.id,
@@ -83,22 +82,36 @@ class _TasksPageState extends State<TasksPage> {
   Future<void> _loadTasks() async {
     setState(() => _isLoading = true);
     final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      _showErrorSnackBar('No authenticated user found.');
+      setState(() => _isLoading = false);
+      return;
+    }
 
     try {
       final response = await supabase
           .from('tasks')
-          .select();
+          .select()
+          .eq('user_id', userId); // Filter by user_id
 
-      if (response != null) {
+      if (response != null && response.isNotEmpty) {
         setState(() {
           _tasks = List<Map<String, dynamic>>.from(response)
               .map((map) => Task.fromMap(map))
               .toList();
         });
+      } else {
+        setState(() {
+          _tasks = []; // Explicitly set to empty if no tasks
+        });
+        _showErrorSnackBar('No tasks found for this user.');
       }
     } catch (e) {
       print('Error loading tasks: $e');
+      _showErrorSnackBar('Failed to load tasks: $e');
+      setState(() {
+        _tasks = []; // Reset tasks on error
+      });
     } finally {
       setState(() => _isLoading = false);
     }
@@ -121,7 +134,6 @@ class _TasksPageState extends State<TasksPage> {
     }
   }
 
-
   Future<void> _toggleTaskCompletion(Task task) async {
     final wasCompleted = task.isCompleted;
 
@@ -143,10 +155,9 @@ class _TasksPageState extends State<TasksPage> {
     }
   }
 
-
   void _showErrorSnackBar(String message) {
     final snackBar = SnackBar(
-      content: Text(message),
+      content: Text(message, style: GoogleFonts.poppins()),
       backgroundColor: Colors.red,
     );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
@@ -172,27 +183,31 @@ class _TasksPageState extends State<TasksPage> {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 10,
+          elevation: 6,
           child: Container(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Add Task', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                SizedBox(height: 20),
+                Text('Add Task', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 20),
                 TextField(
                   decoration: InputDecoration(
                     labelText: 'Title',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
                   ),
                   onChanged: (value) => title = value,
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 DropdownButtonFormField<Priority>(
                   value: priority,
                   decoration: InputDecoration(
                     labelText: 'Priority',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
                   ),
                   onChanged: (Priority? newValue) {
                     if (newValue != null) priority = newValue;
@@ -200,11 +215,11 @@ class _TasksPageState extends State<TasksPage> {
                   items: Priority.values.map((Priority value) {
                     return DropdownMenuItem<Priority>(
                       value: value,
-                      child: Text(value.name.capitalize()),
+                      child: Text(value.name.capitalize(), style: GoogleFonts.poppins()),
                     );
                   }).toList(),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -236,13 +251,16 @@ class _TasksPageState extends State<TasksPage> {
                           if (mounted) Navigator.of(context).pop();
                         }
                       },
-                      child: Text('Add', style: TextStyle(color: Colors.white)),
+                      child: Text('Add', style: GoogleFonts.poppins(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade900),
+                        backgroundColor: Color(0xFF1976D2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel', style: TextStyle(color: Colors.blue.shade900)),
+                      child: Text('Cancel', style: GoogleFonts.poppins(color: Color(0xFF1976D2))),
                     ),
                   ],
                 ),
@@ -261,78 +279,76 @@ class _TasksPageState extends State<TasksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          'Tasks',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Tasks', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.arrow_left),
+                  icon: Icon(Icons.arrow_left, color: Color(0xFF1976D2)),
                   onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
                 ),
                 Text(
                   DateFormat.yMMMM().format(_selectedMonth),
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
                 IconButton(
-                  icon: Icon(Icons.arrow_right),
+                  icon: Icon(Icons.arrow_right, color: Color(0xFF1976D2)),
                   onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search tasks',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
-                fillColor: Colors.grey[200],
+                fillColor: Colors.grey.shade50,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Center(
               child: Column(
                 children: [
                   CircularProgressIndicator(
                     value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
-                    backgroundColor: Colors.grey[300],
-                    color: Colors.blue,
-                    strokeWidth: 8,
+                    backgroundColor: Colors.grey.shade300,
+                    color: Color(0xFF1976D2),
+                    strokeWidth: 6,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     '$_completedTasksCount/${_filteredTasks.length} tasks completed',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Expanded(
               child: _isLoading
-                  ? Center(child: CircularProgressIndicator())
+                  ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
                   : _filteredTasks.isEmpty
                   ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.assignment, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text('No tasks for this month.', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                    Icon(Icons.assignment, size: 64, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    Text('No tasks for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
                   ],
                 ),
               )
@@ -341,30 +357,31 @@ class _TasksPageState extends State<TasksPage> {
                 itemBuilder: (context, index) {
                   final task = _filteredTasks[index];
                   return Card(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
                     elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       leading: Checkbox(
                         value: task.isCompleted,
                         onChanged: isAdmin ? (_) => _toggleTaskCompletion(task) : null,
+                        activeColor: Color(0xFF1976D2),
                       ),
-
                       title: Text(
                         task.title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
                           decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                         ),
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Due: ${DateFormat.yMd().format(task.dueDate)}'),
-                          SizedBox(height: 4),
+                          Text('Due: ${DateFormat.yMd().format(task.dueDate)}', style: GoogleFonts.poppins(color: Colors.grey.shade600)),
+                          const SizedBox(height: 4),
                           Chip(
                             label: Text(
                               task.priority.name.capitalize(),
-                              style: TextStyle(color: Colors.white),
+                              style: GoogleFonts.poppins(color: Colors.white),
                             ),
                             backgroundColor: task.priority == Priority.low
                                 ? Colors.green
@@ -376,11 +393,10 @@ class _TasksPageState extends State<TasksPage> {
                       ),
                       trailing: isAdmin
                           ? IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red),
+                        icon: Icon(Icons.delete, color: Colors.red.shade400),
                         onPressed: () => _deleteTask(task),
                       )
                           : null,
-
                     ),
                   );
                 },
@@ -393,10 +409,9 @@ class _TasksPageState extends State<TasksPage> {
           ? FloatingActionButton(
         onPressed: _addTaskDialog,
         child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: Color(0xFF1976D2),
       )
           : null,
-
     );
   }
 }

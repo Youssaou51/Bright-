@@ -65,7 +65,6 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
     }
   }
 
-
   Future<void> _updateRole(String userId, String newRole) async {
     try {
       await widget.supabase
@@ -93,80 +92,92 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Gérer les Rôles', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.blueAccent,
+        title: Text('Gérer les Rôles', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        elevation: 2,
       ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : ListView.builder(
-        itemCount: _users.length,
-        itemBuilder: (context, index) {
-          final user = _users[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            elevation: 3,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(child: Text(user['username'][0])),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(user['username'], style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-                            Text('Rôle: ${user['role']}', style: GoogleFonts.poppins(fontSize: 13)),
-                            Text('Actif: ${user['is_active'] ? 'Oui' : 'Non'}', style: GoogleFonts.poppins(fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      DropdownButton<String>(
-                        value: user['role'],
-                        items: ['user', 'admin'].map((String role) {
-                          return DropdownMenuItem<String>(
-                            value: role,
-                            child: Text(role, style: GoogleFonts.poppins(fontSize: 13)),
-                          );
-                        }).toList(),
-                        onChanged: (String? newRole) {
-                          if (newRole != null && newRole != user['role']) {
-                            _updateRole(user['id'], newRole);
-                          }
-                        },
-                      ),
-                      Row(
+      body: Container(
+        color: Colors.white,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
+            : _users.isEmpty
+            ? const Center(child: Text('Aucun utilisateur trouvé.', style: TextStyle(fontSize: 16, color: Colors.grey)))
+            : ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: _users.length,
+          itemBuilder: (context, index) {
+            final user = _users[index];
+            return Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Color(0xFF1976D2).withOpacity(0.1),
+                      child: Text(user['username'][0], style: GoogleFonts.poppins(color: Color(0xFF1976D2), fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Activer', style: GoogleFonts.poppins(fontSize: 13)),
-                          Switch(
-                            value: user['is_active'] ?? false,
-                            onChanged: (bool newValue) {
-                              _toggleActivation(user['id'], newValue);
-                            },
-                            activeColor: Colors.green,
-                            inactiveThumbColor: Colors.red,
-                          ),
+                          Text(user['username'], style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16)),
+                          const SizedBox(height: 4),
+                          Text('Rôle: ${user['role']}', style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600])),
+                          Text('Actif: ${user['is_active'] ? 'Oui' : 'Non'}', style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600])),
                         ],
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    Row(
+                      children: [
+                        DropdownButton<String>(
+                          value: user['role'],
+                          items: ['user', 'admin'].map((String role) {
+                            return DropdownMenuItem<String>(
+                              value: role,
+                              child: Text(role, style: GoogleFonts.poppins(fontSize: 14)),
+                            );
+                          }).toList(),
+                          onChanged: (String? newRole) {
+                            if (newRole != null && newRole != user['role']) {
+                              _updateRole(user['id'], newRole);
+                            }
+                          },
+                          dropdownColor: Colors.white,
+                          style: GoogleFonts.poppins(color: Color(0xFF1976D2)),
+                          underline: Container(),
+                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1976D2)),
+                        ),
+                        const SizedBox(width: 16),
+                        Switch(
+                          value: user['is_active'] ?? false,
+                          onChanged: (bool newValue) {
+                            _toggleActivation(user['id'], newValue);
+                          },
+                          activeColor: Colors.green,
+                          inactiveThumbColor: Colors.redAccent,
+                          activeTrackColor: Colors.green.withOpacity(0.5),
+                          inactiveTrackColor: Colors.redAccent.withOpacity(0.5),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-
-
-        },
+            );
+          },
+        ),
       ),
     );
   }

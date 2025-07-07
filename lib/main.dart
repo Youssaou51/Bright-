@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'welcome_page.dart';
 import 'home_page.dart';
@@ -17,8 +18,16 @@ void main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
   );
 
-  // Supprime la session automatiquement au démarrage
-  await Supabase.instance.client.auth.signOut();
+  // Recover session with stored refresh token
+  final prefs = await SharedPreferences.getInstance();
+  final refreshToken = prefs.getString('refreshToken');
+  if (refreshToken != null) {
+    try {
+      await Supabase.instance.client.auth.recoverSession(refreshToken);
+    } catch (e) {
+      print('Failed to recover session: $e');
+    }
+  }
 
   Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
     final event = data.event;
@@ -27,6 +36,9 @@ void main() async {
     if (event == AuthChangeEvent.signedIn && session != null) {
       final user = session.user;
       if (user == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
 
       final existing = await Supabase.instance.client
           .from('users')
@@ -44,6 +56,9 @@ void main() async {
       } else {
         print('👤 Utilisateur existant : ${user.email}');
       }
+    } else if (event == AuthChangeEvent.signedOut) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', false);
     }
   });
 
@@ -52,6 +67,13 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   final SupabaseClient _supabase = Supabase.instance.client;
+
+  Future<String?> _checkAuthStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = _supabase.auth.currentUser != null || (prefs.getBool('isLoggedIn') ?? false);
+    print('Auth status check: isLoggedIn = $isLoggedIn, currentUser = ${_supabase.auth.currentUser}, prefs = ${prefs.getBool('isLoggedIn')}');
+    return isLoggedIn ? '/home' : '/login';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,14 +102,40 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      initialRoute: '/', // Toujours rediriger vers WelcomePage au lancement
+      initialRoute: '/',
       routes: {
-        '/': (context) => WelcomePage(),
+        '/': (context) => FutureBuilder<String?>(
+          future: _checkAuthStatus(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            final route = snapshot.data;
+            if (route == '/home') {
+              final user = _supabase.auth.currentUser;
+              if (user == null) return LoginPage();
+              final currentUser = local.User(
+                id: user.id,
+                username: user.email?.split('@')[0] ?? 'User',
+                pseudo: user.email ?? 'user@bff.com',
+                imageUrl: "https://via.placeholder.com/150",
+              );
+              return HomePage(
+                posts: [],
+                currentUser: currentUser,
+                refreshPosts: () async {},
+                likedPostIds: <String>{},
+              );
+            }
+            return LoginPage();
+          },
+        ),
+        '/welcome': (context) => WelcomePage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
         '/home': (context) {
           final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage(); // Sécurité
+          if (user == null) return WelcomePage();
           final currentUser = local.User(
             id: user.id,
             username: user.email?.split('@')[0] ?? 'User',
@@ -103,7 +151,7 @@ class MyApp extends StatelessWidget {
         },
         '/profile': (context) {
           final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage(); // Sécurité
+          if (user == null) return WelcomePage();
           final currentUser = local.User(
             id: user.id,
             username: user.email?.split('@')[0] ?? 'User',

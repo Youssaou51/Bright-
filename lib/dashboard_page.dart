@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -30,7 +29,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   List<Post> _posts = [];
   Set<String> _likedPostIds = {};
   double _currentAmount = 0.0;
-  bool _isAdmin = false; // Track if the user is an admin
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -38,43 +37,37 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     _pageController = PageController();
     print('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
     print('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
-    _checkUserRole(); // Check user role on init
+    _checkUserRole();
     _loadPosts();
-    _loadInitialAmount(); // Load initial amount
+    _loadInitialAmount();
   }
 
   Future<void> _checkUserRole() async {
     final user = _supabase.auth.currentUser;
-
     if (user == null) {
       setState(() {
         _isAdmin = false;
       });
       return;
     }
-
     try {
       final userRoleResponse = await _supabase
-          .from('users') // ✅ Pas besoin de 'public.'
+          .from('users')
           .select('role')
           .eq('id', user.id)
           .single();
-
       final userRole = userRoleResponse['role'] as String? ?? 'user';
-
       print('Rôle récupéré depuis la table users : $userRole');
-
       setState(() {
         _isAdmin = userRole.toLowerCase() == 'admin';
       });
     } catch (e) {
       print('Erreur lors de la vérification du rôle utilisateur : $e');
       setState(() {
-        _isAdmin = false; // On considère par défaut que l'utilisateur n'est pas admin
+        _isAdmin = false;
       });
     }
   }
-
 
   Future<void> _loadInitialAmount() async {
     try {
@@ -106,21 +99,16 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         ''')
           .order('timestamp', ascending: false)
           .timeout(const Duration(seconds: 5));
-
       print('Posts response: $postsResponse');
-
       final likesResponse = await _supabase
           .from('likes')
           .select('post_id')
           .eq('user_id', widget.currentUser.id)
           .timeout(const Duration(seconds: 5));
-
       print('Likes response: $likesResponse');
-
       final likedPostIds = likesResponse
           .map<String>((like) => like['post_id'] as String)
           .toSet();
-
       setState(() {
         _posts = postsResponse.map<Post>((e) {
           final postJson = Map<String, dynamic>.from(e);
@@ -144,7 +132,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(errorMessage),
+          content: Text(errorMessage, style: GoogleFonts.poppins()),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -167,7 +155,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       context: context,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       backgroundColor: Colors.white,
-      isScrollControlled: true,
       builder: (_) => Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -178,12 +165,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               height: 4,
               margin: EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.grey[400],
+                color: Colors.grey[300],
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.camera_alt, color: Colors.blueAccent),
+              leading: Icon(Icons.camera_alt, color: Color(0xFF1976D2)),
               title: Text('Prendre une photo', style: GoogleFonts.poppins()),
               onTap: () async {
                 Navigator.pop(context);
@@ -271,7 +258,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   filled: true,
-                  fillColor: Colors.grey[100],
+                  fillColor: Colors.grey[50],
                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 style: GoogleFonts.poppins(),
@@ -295,7 +282,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       _addPost(images, videos, caption);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: Color(0xFF1976D2),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -305,7 +292,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       "Publier",
                       style: GoogleFonts.poppins(
                         color: Colors.white,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w500, // Corrected from Weight.w500
                       ),
                     ),
                   ),
@@ -323,26 +310,22 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       final postId = Uuid().v4();
       List<String> imageUrls = [];
       List<String> videoUrls = [];
-
       for (var image in images) {
         final path = 'posts/images/$postId-${image.path.split('/').last}';
         await _supabase.storage.from('posts').upload(path, image);
         imageUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
-
       for (var video in videos) {
         final path = 'posts/videos/$postId-${video.path.split('/').last}';
         await _supabase.storage.from('posts').upload(path, video);
         videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
-
       final userResponse = await _supabase
           .from('users')
           .select('profile_picture')
           .eq('id', widget.currentUser.id)
           .single();
       final profilePictureUrl = userResponse['profile_picture'] as String?;
-
       final post = {
         'id': postId,
         'user_id': widget.currentUser.id,
@@ -354,13 +337,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         'video_urls': videoUrls,
         'timestamp': DateTime.now().toIso8601String(),
       };
-
       await _supabase.from('posts').insert(post);
       await _loadPosts();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Post publié !', style: GoogleFonts.poppins()),
-          backgroundColor: Colors.teal,
+          backgroundColor: Colors.teal[700]!,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
@@ -417,7 +399,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   filled: true,
-                  fillColor: Colors.grey[100],
+                  fillColor: Colors.grey[50],
                   contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 style: GoogleFonts.poppins(),
@@ -458,7 +440,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                             SnackBar(
                               content: Text('Montant mis à jour avec succès !',
                                   style: GoogleFonts.poppins()),
-                              backgroundColor: Colors.teal,
+                              backgroundColor: Colors.teal[700]!,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
@@ -492,7 +474,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
+                      backgroundColor: Color(0xFF1976D2),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -520,108 +502,81 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.of(context).size.height * 0.3,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blueAccent, Colors.teal],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 32),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Bright Future Foundation',
-                            style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                        if (_isAdmin) // Show edit icon only if user is admin
-                          IconButton(
-                            icon: Icon(Icons.edit, color: Colors.white, size: 28),
-                            onPressed: _showUpdateFundsDialog,
-                            tooltip: 'Modifier le montant des fonds',
-                            constraints: BoxConstraints(minWidth: 48, minHeight: 48),
-                          ),
-                      ],
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Bright Future Foundation',
+                    style: GoogleFonts.poppins(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
-                ),
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16),
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: FoundationAmountWidget(
-                    supabase: _supabase,
-                    initialAmount: _currentAmount,
-                    onAmountUpdated: (amount) {
-                      print('Amount updated: $amount');
-                      setState(() {
-                        _currentAmount = amount;
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(height: 16),
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: NeverScrollableScrollPhysics(),
-                    children: [
-                      HomePage(
-                        posts: _posts,
-                        currentUser: widget.currentUser,
-                        likedPostIds: _likedPostIds,
-                        refreshPosts: _loadPosts,
-                      ),
-                      ReportsPage(),
-                      Container(), // Placeholder for Media page
-                      TasksPage(),
-                      ProfilePage(
-                        currentUser: widget.currentUser,
-                        refreshPosts: _loadPosts,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                  if (_isAdmin)
+                    IconButton(
+                      icon: Icon(Icons.edit, color: Colors.black, size: 28),
+                      onPressed: _showUpdateFundsDialog,
+                      tooltip: 'Modifier le montant des fonds',
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: FoundationAmountWidget(
+                supabase: _supabase,
+                initialAmount: _currentAmount,
+                onAmountUpdated: (amount) {
+                  print('Amount updated: $amount');
+                  setState(() {
+                    _currentAmount = amount;
+                  });
+                },
+              ),
+            ),
+            SizedBox(height: 16),
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: NeverScrollableScrollPhysics(),
+                children: [
+                  HomePage(
+                    posts: _posts,
+                    currentUser: widget.currentUser,
+                    likedPostIds: _likedPostIds,
+                    refreshPosts: _loadPosts,
+                  ),
+                  ReportsPage(),
+                  Container(), // Placeholder for Media page
+                  TasksPage(),
+                  ProfilePage(
+                    currentUser: widget.currentUser,
+                    refreshPosts: _loadPosts,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -629,7 +584,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: Offset(0, -5),
             ),
@@ -638,8 +593,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
-          selectedItemColor: Colors.blueAccent,
-          unselectedItemColor: Colors.grey[500],
+          selectedItemColor: Color(0xFF1976D2),
+          unselectedItemColor: Colors.black,
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
           selectedLabelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
@@ -650,7 +605,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               icon: AnimatedScale(
                 scale: _selectedIndex == 0 ? 1.2 : 1.0,
                 duration: Duration(milliseconds: 200),
-                child: FaIcon(FontAwesomeIcons.home),
+                child: Icon(Icons.home),
               ),
               label: "Home",
             ),
@@ -658,7 +613,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               icon: AnimatedScale(
                 scale: _selectedIndex == 1 ? 1.2 : 1.0,
                 duration: Duration(milliseconds: 200),
-                child: FaIcon(FontAwesomeIcons.fileAlt),
+                child: Icon(Icons.bar_chart),
               ),
               label: "Reports",
             ),
@@ -666,7 +621,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               icon: AnimatedScale(
                 scale: _selectedIndex == 2 ? 1.2 : 1.0,
                 duration: Duration(milliseconds: 200),
-                child: FaIcon(FontAwesomeIcons.plusSquare),
+                child: Icon(Icons.camera_alt),
               ),
               label: "Media",
             ),
@@ -674,7 +629,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               icon: AnimatedScale(
                 scale: _selectedIndex == 3 ? 1.2 : 1.0,
                 duration: Duration(milliseconds: 200),
-                child: FaIcon(FontAwesomeIcons.tasks),
+                child: Icon(Icons.task),
               ),
               label: "Tasks",
             ),
@@ -682,7 +637,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               icon: AnimatedScale(
                 scale: _selectedIndex == 4 ? 1.2 : 1.0,
                 duration: Duration(milliseconds: 200),
-                child: FaIcon(FontAwesomeIcons.user),
+                child: Icon(Icons.person),
               ),
               label: "Profile",
             ),

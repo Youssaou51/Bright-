@@ -11,19 +11,17 @@ import 'comments_page.dart';
 import 'user.dart' as AppUser;
 
 class HomePage extends StatefulWidget {
-  // These properties are kept as they are part of your existing API,
-  // even if 'posts' and 'likedPostIds' are now primarily managed internally.
   final List<Post> posts;
   final AppUser.User currentUser;
-  final Future<void> Function() refreshPosts; // Still used for the RefreshIndicator
+  final Future<void> Function() refreshPosts;
   final Set<String> likedPostIds;
 
   const HomePage({
     Key? key,
-    required this.posts, // Will be ignored, but kept for API consistency
+    required this.posts,
     required this.currentUser,
-    required this.likedPostIds, // Will be used as initial state for _likedPostIds
-    required this.refreshPosts, // Still called on pull-to-refresh
+    required this.likedPostIds,
+    required this.refreshPosts,
   }) : super(key: key);
 
   @override
@@ -32,42 +30,35 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   late SupabaseClient _supabase;
-  List<Post> _posts = []; // <-- This will hold the fetched posts
-  bool _isLoading = true; // State for loading indicator
-  String? _errorMessage; // State for displaying errors
-
+  List<Post> _posts = [];
+  bool _isLoading = true;
+  String? _errorMessage;
   late Set<String> _likedPostIds;
   late AnimationController _animationController;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _supabase = Supabase.instance.client;
-    _likedPostIds = Set.from(widget.likedPostIds); // Initialize with passed likes
+    _likedPostIds = Set.from(widget.likedPostIds);
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    timeago.setLocaleMessages('fr', timeago.FrMessages()); // Set French locale for timeago
-
-    // --- CRUCIAL: Fetch posts when the page initializes ---
+    timeago.setLocaleMessages('fr', timeago.FrMessages());
     _fetchPosts();
-    // -----------------------------------------------------
-
-    _loadInitialLikes(); // Load initial likes for the current user
+    _loadInitialLikes();
   }
 
-  // --- NEW: Method to fetch posts from Supabase ---
   Future<void> _fetchPosts() async {
-    print('🔄 Starting to fetch posts...');
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
     try {
-      // This query retrieves posts along with their aggregated like and comment counts.
-      // Ensure your Supabase RLS policies allow SELECT on 'posts', 'likes', and 'comments'.
       final List<Map<String, dynamic>> response = await _supabase
           .from('posts')
           .select('''
@@ -76,41 +67,34 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             comment_count:comments(count)
           ''')
           .order('timestamp', ascending: false)
-          .limit(50); // Optional: Limit the number of posts fetched
-
-      print('✅ Raw posts response: $response');
-
+          .limit(50);
       final List<Post> fetchedPosts = response.map((data) {
-        // Extract the aggregated counts, handling potential nulls or empty lists
         final int likesCount = (data['likes_count'] as List?)?.isNotEmpty == true
             ? data['likes_count'][0]['count'] as int
             : 0;
         final int commentCount = (data['comment_count'] as List?)?.isNotEmpty == true
             ? data['comment_count'][0]['count'] as int
             : 0;
-
-        // Create a mutable copy to inject counts directly for the Post.fromJson
         final Map<String, dynamic> postData = Map.from(data);
         postData['likes_count'] = likesCount;
         postData['comment_count'] = commentCount;
-
         return Post.fromJson(postData);
       }).toList();
-
-      setState(() {
-        _posts = fetchedPosts; // Update the internal posts list
-        _isLoading = false;
-      });
-      print('✅ Posts fetched successfully. Count: ${_posts.length}');
+      if (mounted) {
+        setState(() {
+          _posts = fetchedPosts;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print('❌ Error fetching posts: $e');
-      setState(() {
-        _errorMessage = 'Impossible de charger les posts. Veuillez vérifier votre connexion.';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Impossible de charger les posts. Veuillez vérifier votre connexion.';
+          _isLoading = false;
+        });
+      }
     }
   }
-  // ---------------------------------------------------
 
   Future<void> _loadInitialLikes() async {
     try {
@@ -119,10 +103,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           .select('post_id')
           .eq('user_id', widget.currentUser.id)
           .timeout(const Duration(seconds: 5));
-      print('Load initial likes response: $response');
-      setState(() {
-        _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
-      });
+      if (mounted) {
+        setState(() {
+          _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
+        });
+      }
     } catch (e) {
       print('Error loading initial likes: $e');
     }
@@ -131,20 +116,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<void> _toggleLike(Post post) async {
     final userId = widget.currentUser.id;
     final isCurrentlyLiked = _likedPostIds.contains(post.id);
-
-    // Optimistic UI update for better responsiveness
     setState(() {
       if (isCurrentlyLiked) {
         _likedPostIds.remove(post.id);
-        post.likesCount--; // Decrement locally
+        post.likesCount--;
       } else {
         _likedPostIds.add(post.id);
-        post.likesCount++; // Increment locally
+        post.likesCount++;
       }
     });
-
     _animationController.forward(from: 0);
-
     try {
       if (isCurrentlyLiked) {
         await _supabase
@@ -153,21 +134,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .eq('post_id', post.id)
             .eq('user_id', userId)
             .timeout(const Duration(seconds: 5));
-        print('Delete like for post ${post.id} by user $userId');
       } else {
         await _supabase.from('likes').insert({
           'post_id': post.id,
           'user_id': userId,
         }).timeout(const Duration(seconds: 5));
-        print('Insert like for post ${post.id} by user $userId');
       }
-      // After successful operation, you might want to refresh the specific post
-      // or trigger a full fetch to ensure data consistency, especially if other
-      // users can also like the same post.
-      // For now, the optimistic update is combined with a full fetch on refresh.
-      // await _fetchPosts(); // Uncomment if you want a full re-fetch after each like/unlike
     } catch (e) {
-      print('Error toggling like for post ${post.id}: $e');
       String errorMessage = 'Erreur lors du like/désaimage. Veuillez réessayer.';
       if (e.toString().contains('violates row-level security policy')) {
         errorMessage = 'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
@@ -178,9 +151,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         SnackBar(
           content: Text(errorMessage),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
-      // Revert optimistic update if the operation failed
       setState(() {
         if (isCurrentlyLiked) {
           _likedPostIds.add(post.id);
@@ -194,18 +170,13 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   void _showCommentsPage(Post post) async {
-    // Navigate to comments page and potentially get an updated comment count back
-    final updatedCommentCount = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    final updatedCommentCount = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
+        fullscreenDialog: true,
       ),
-      builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
     );
-
-    // If the comment count changed, update it locally
     if (updatedCommentCount != null && updatedCommentCount != post.commentCount) {
       setState(() {
         post.commentCount = updatedCommentCount;
@@ -216,18 +187,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _showMediaViewer(BuildContext context, List<String> media, int initialIndex, bool isVideo) {
     Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => MediaViewer(
+      MaterialPageRoute(
+        builder: (context) => MediaViewer(
           media: media,
           initialIndex: initialIndex,
           isVideo: isVideo,
         ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
-        },
       ),
     );
   }
@@ -243,84 +208,102 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildPostItem(Post post, int index) {
-    print('Construction du post ${post.id} avec caption: ${post.caption}');
     final isLiked = _likedPostIds.contains(post.id);
     final hasImages = post.imageUrls.isNotEmpty;
     final hasVideos = post.videoUrls.isNotEmpty;
 
-    return FadeIn(
-      delay: Duration(milliseconds: 100 * index),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey.shade200,
-                // Fallback to a default asset image if profilePicture is null or empty
-                backgroundImage: (post.profilePicture != null && post.profilePicture!.isNotEmpty)
-                    ? NetworkImage(post.profilePicture!)
-                    : const AssetImage('assets/default_profile.png') as ImageProvider<Object>?, // Make sure this asset exists
-                onBackgroundImageError: (_, __) => const Icon(Icons.person, color: Colors.grey),
-              ),
-              title: Text(
-                post.username,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  fontFamily: 'Poppins',
+    return AnimatedOpacity(
+      duration: Duration(milliseconds: 300 + (100 * index % 300)),
+      opacity: 1.0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: (post.profilePicture != null && post.profilePicture!.isNotEmpty)
+                          ? NetworkImage(post.profilePicture!)
+                          : const AssetImage('assets/default_profile.png') as ImageProvider<Object>?,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            post.username,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            timeago.format(post.timestamp, locale: 'fr'),
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                      onPressed: () {},
+                    ),
+                  ],
                 ),
               ),
-              subtitle: Text(
-                timeago.format(post.timestamp, locale: 'fr'),
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                  fontFamily: 'Roboto',
+              if (post.caption?.isNotEmpty ?? false)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    post.caption!,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.4,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            if (hasImages || hasVideos)
-              Column(
-                children: [
-                  if (hasImages)
-                    GestureDetector(
-                      onTap: () => _showMediaViewer(context, post.imageUrls, 0, false),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                        child: SizedBox(
-                          height: 280,
-                          child: PageView.builder(
-                            itemCount: post.imageUrls.length,
-                            itemBuilder: (context, index) => Image.network(
-                              post.imageUrls[index],
-                              fit: BoxFit.cover,
-                              width: double.infinity,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                        : null,
-                                  ),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) => const Center(
+              if (hasImages || hasVideos) ...[
+                if (hasImages)
+                  GestureDetector(
+                    onTap: () => _showMediaViewer(context, post.imageUrls, 0, false),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: PageView.builder(
+                          itemCount: post.imageUrls.length,
+                          itemBuilder: (context, index) => Image.network(
+                            post.imageUrls[index],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: Colors.grey.shade100,
+                              child: const Center(
                                 child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
                               ),
                             ),
@@ -328,94 +311,110 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         ),
                       ),
                     ),
-                  if (hasVideos)
-                    GestureDetector(
-                      onTap: () => _showMediaViewer(context, post.videoUrls, 0, true),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                        child: SizedBox(
-                          height: 400, // Adjusted for vertical video
-                          child: ChewieVideoWidget(url: post.videoUrls[0], forceVertical: true),
-                        ),
+                  ),
+                if (hasVideos)
+                  GestureDetector(
+                    onTap: () => _showMediaViewer(context, post.videoUrls, 0, true),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      child: AspectRatio(
+                        aspectRatio: 9/16,
+                        child: ChewieVideoWidget(url: post.videoUrls[0]),
                       ),
                     ),
-                ],
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Text(
-                post.caption ?? '',
-                style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  fontFamily: 'Roboto',
+                  ),
+              ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Row(
+                  children: [
+                    _buildLikeButton(post, isLiked),
+                    const SizedBox(width: 16),
+                    _buildCommentButton(post),
+                    const Spacer(),
+                    _buildShareButton(post),
+                  ],
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                children: [
-                  _buildActionButton(
-                    icon: isLiked ? Icons.favorite : Icons.favorite_border,
-                    color: isLiked ? Colors.redAccent : Colors.grey.shade700,
-                    label: post.likesCount.toString(),
-                    onTap: () => _toggleLike(post),
-                  ),
-                  const SizedBox(width: 16),
-                  _buildActionButton(
-                    icon: Icons.comment_outlined,
-                    color: Colors.grey.shade700,
-                    label: post.commentCount.toString(),
-                    onTap: () => _showCommentsPage(post),
-                  ),
-                  const Spacer(),
-                  _buildActionButton(
-                    icon: Icons.share_outlined,
-                    color: Colors.grey.shade700,
-                    label: '',
-                    onTap: () => _sharePost(post),
-                  ),
-                ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLikeButton(Post post, bool isLiked) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _toggleLike(post),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) => ScaleTransition(
+                scale: animation,
+                child: child,
+              ),
+              child: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                key: ValueKey<bool>(isLiked),
+                color: isLiked ? Colors.redAccent : Colors.grey.shade700,
+                size: 24,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(width: 4),
+            Text(
+              post.likesCount.toString(),
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 14,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required Color color,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        _animationController.forward(from: 0);
-        onTap();
-      },
-      child: ScaleTransition(
-        scale: Tween(begin: 1.0, end: 1.2).animate(
-          CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-        ),
+  Widget _buildCommentButton(Post post) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _showCommentsPage(post),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
           children: [
-            Icon(icon, color: color, size: 24),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 14,
-                  fontFamily: 'Roboto',
-                ),
+            const Icon(
+              Icons.mode_comment_outlined,
+              color: Colors.grey,
+              size: 24,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              post.commentCount.toString(),
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 14,
               ),
-            ],
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShareButton(Post post) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => _sharePost(post),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Icon(
+          Icons.share_outlined,
+          color: Colors.grey.shade700,
+          size: 24,
         ),
       ),
     );
@@ -423,57 +422,96 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    // Use the internally managed _posts list
     final sortedPosts = [..._posts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
     }
-
     if (_errorMessage != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_errorMessage!),
+            Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
             const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _fetchPosts, // Retry fetching posts
+              onPressed: _fetchPosts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF1976D2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
               child: const Text('Réessayer'),
             ),
           ],
         ),
       );
     }
-
     if (sortedPosts.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.photo_library_outlined, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
             Text(
               'Aucun post à afficher',
-              style: TextStyle(fontSize: 18, fontFamily: 'Roboto', color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade600,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _fetchPosts, // Trigger refresh using internal method
+              onPressed: _fetchPosts,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF1976D2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
               child: const Text('Rafraîchir'),
             ),
           ],
         ),
       );
     }
-
     return RefreshIndicator(
-      onRefresh: _fetchPosts, // Pull-to-refresh will call our internal fetch
-      color: const Color(0xFF1E88E5),
+      onRefresh: _fetchPosts,
+      color: Color(0xFF1976D2),
       backgroundColor: Colors.white,
-      child: ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        itemCount: sortedPosts.length,
-        itemBuilder: (context, index) => _buildPostItem(sortedPosts[index], index),
+      displacement: 40,
+      edgeOffset: 20,
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.only(top: 8),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                    (context, index) => _buildPostItem(sortedPosts[index], index),
+                childCount: sortedPosts.length,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -481,60 +519,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _animationController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }
 
-// Custom FadeIn widget for post animation (no change)
-class FadeIn extends StatefulWidget {
-  final Widget child;
-  final Duration delay;
-
-  const FadeIn({required this.child, this.delay = Duration.zero, Key? key}) : super(key: key);
-
-  @override
-  _FadeInState createState() => _FadeInState();
-}
-
-class _FadeInState extends State<FadeIn> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    Future.delayed(widget.delay, () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _animation,
-      child: widget.child,
-    );
-  }
-}
-
-// Full-screen media viewer (images or videos) (no change)
 class MediaViewer extends StatefulWidget {
   final List<String> media;
   final int initialIndex;
   final bool isVideo;
 
-  const MediaViewer({required this.media, this.initialIndex = 0, required this.isVideo, Key? key}) : super(key: key);
+  const MediaViewer({
+    required this.media,
+    this.initialIndex = 0,
+    required this.isVideo,
+    Key? key,
+  }) : super(key: key);
 
   @override
   _MediaViewerState createState() => _MediaViewerState();
@@ -568,21 +568,12 @@ class _MediaViewerState extends State<MediaViewer> {
             itemCount: widget.media.length,
             itemBuilder: (context, index) {
               return widget.isVideo
-                  ? ChewieVideoWidget(url: widget.media[index], forceVertical: true)
+                  ? ChewieVideoWidget(url: widget.media[index])
                   : PhotoView(
                 imageProvider: NetworkImage(widget.media[index]),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
-                ),
-                loadingBuilder: (context, event) => Center(
-                  child: CircularProgressIndicator(
-                    value: event == null
-                        ? null
-                        : event.cumulativeBytesLoaded / (event.expectedTotalBytes ?? 1),
-                  ),
-                ),
+                heroAttributes: PhotoViewHeroAttributes(tag: widget.media[index]),
               );
             },
             onPageChanged: (index) {
@@ -591,24 +582,41 @@ class _MediaViewerState extends State<MediaViewer> {
               });
             },
           ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topLeft,
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            child: SafeArea(
               child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 24),
+                ),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
           ),
           if (widget.media.length > 1)
-            SafeArea(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Text(
                     '${_currentIndex + 1} / ${widget.media.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Roboto'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -619,12 +627,15 @@ class _MediaViewerState extends State<MediaViewer> {
   }
 }
 
-// Video player widget with Chewie (improved initialization)
 class ChewieVideoWidget extends StatefulWidget {
   final String url;
-  final bool forceVertical;
+  final bool? forceVertical;
 
-  const ChewieVideoWidget({required this.url, this.forceVertical = false, Key? key}) : super(key: key);
+  const ChewieVideoWidget({
+    required this.url,
+    this.forceVertical,
+    Key? key,
+  }) : super(key: key);
 
   @override
   _ChewieVideoWidgetState createState() => _ChewieVideoWidgetState();
@@ -632,53 +643,86 @@ class ChewieVideoWidget extends StatefulWidget {
 
 class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
   late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController; // Made nullable for delayed initialization
+  ChewieController? _chewieController;
 
   @override
   void initState() {
     super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
     _videoPlayerController = VideoPlayerController.network(widget.url);
-    _videoPlayerController.initialize().then((_) {
-      if (mounted) { // Check if the widget is still in the tree
+    try {
+      await _videoPlayerController.initialize();
+      if (mounted) {
         setState(() {
           _chewieController = ChewieController(
             videoPlayerController: _videoPlayerController,
-            aspectRatio: widget.forceVertical ? 9 / 16 : _videoPlayerController.value.aspectRatio, // Use video's aspect ratio if not forced vertical
+            aspectRatio: widget.forceVertical ?? false
+                ? 9 / 16
+                : _videoPlayerController.value.aspectRatio,
             autoPlay: true,
             looping: true,
-            showControls: true, // Typically, you want controls for a full-screen viewer
+            showControls: true,
+            materialProgressColors: ChewieProgressColors(
+              playedColor: Color(0xFF1976D2),
+              handleColor: Color(0xFF1976D2),
+              bufferedColor: Colors.grey.shade300,
+              backgroundColor: Colors.grey.shade500,
+            ),
+            placeholder: Container(
+              color: Colors.black,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+            errorBuilder: (context, errorMessage) {
+              return Container(
+                color: Colors.black,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white, size: 40),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading video',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         });
       }
-    }).catchError((error) {
-      print('Error initializing video: $error');
-      // Handle video load error, e.g., show an error icon
+    } catch (e) {
       if (mounted) {
-        setState(() {
-          // You could set an error flag here to display a message
-        });
+        setState(() {});
       }
-    });
+    }
   }
 
   @override
   void dispose() {
     _videoPlayerController.dispose();
-    _chewieController?.dispose(); // Dispose only if initialized
+    _chewieController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return _chewieController != null && _videoPlayerController.value.isInitialized
-        ? Chewie(
-      controller: _chewieController!,
-    )
-        : Container(
-      color: Colors.black, // Dark background while loading video
-      child: const Center(
-        child: CircularProgressIndicator(color: Colors.white), // White spinner on black background
-      ),
-    );
+    if (_chewieController != null && _videoPlayerController.value.isInitialized) {
+      return Chewie(controller: _chewieController!);
+    } else {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
   }
 }
