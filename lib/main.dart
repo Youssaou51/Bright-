@@ -9,6 +9,7 @@ import 'login_page.dart';
 import 'signup_page.dart';
 import 'user.dart' as local;
 import 'post.dart';
+import 'dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +73,7 @@ class MyApp extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = _supabase.auth.currentUser != null || (prefs.getBool('isLoggedIn') ?? false);
     print('Auth status check: isLoggedIn = $isLoggedIn, currentUser = ${_supabase.auth.currentUser}, prefs = ${prefs.getBool('isLoggedIn')}');
-    return isLoggedIn ? '/home' : '/login';
+    return isLoggedIn ? '/dashboard' : '/login';
   }
 
   @override
@@ -111,7 +112,7 @@ class MyApp extends StatelessWidget {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
             final route = snapshot.data;
-            if (route == '/home') {
+            if (route == '/dashboard') {
               final user = _supabase.auth.currentUser;
               if (user == null) return LoginPage();
               final currentUser = local.User(
@@ -120,12 +121,7 @@ class MyApp extends StatelessWidget {
                 pseudo: user.email ?? 'user@bff.com',
                 imageUrl: "https://via.placeholder.com/150",
               );
-              return HomePage(
-                posts: [],
-                currentUser: currentUser,
-                refreshPosts: () async {},
-                likedPostIds: <String>{},
-              );
+              return DashboardPage(currentUser: currentUser);
             }
             return LoginPage();
           },
@@ -133,7 +129,7 @@ class MyApp extends StatelessWidget {
         '/welcome': (context) => WelcomePage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
-        '/home': (context) {
+        '/dashboard': (context) {
           final user = _supabase.auth.currentUser;
           if (user == null) return WelcomePage();
           final currentUser = local.User(
@@ -142,12 +138,7 @@ class MyApp extends StatelessWidget {
             pseudo: user.email ?? 'user@bff.com',
             imageUrl: "https://via.placeholder.com/150",
           );
-          return HomePage(
-            posts: [],
-            currentUser: currentUser,
-            refreshPosts: () async {},
-            likedPostIds: <String>{},
-          );
+          return DashboardPage(currentUser: currentUser);
         },
         '/profile': (context) {
           final user = _supabase.auth.currentUser;

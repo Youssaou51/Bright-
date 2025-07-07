@@ -166,147 +166,139 @@ class _CommentsPageState extends State<CommentsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
-      backgroundColor: Colors.white,
-      body: DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollSheetController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Center(
-                    child: Container(
-                      width: 40,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Container(
+                  width: 80, // Broad handle
+                  height: 6, // Slightly thicker handle
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                Text(
-                  'Commentaires',
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ),
+            Text(
+              'Commentaires',
+              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const Divider(),
+            Expanded(
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
+                  : _error != null
+                  ? Center(child: Text(_error!, style: GoogleFonts.poppins(color: Colors.red)))
+                  : _comments.isEmpty
+                  ? Center(
+                child: Text(
+                  'Aucun commentaire pour l\'instant',
+                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
                 ),
-                const Divider(),
-                Expanded(
-                  child: _isLoading
-                      ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-                      : _error != null
-                      ? Center(child: Text(_error!, style: GoogleFonts.poppins(color: Colors.red)))
-                      : _comments.isEmpty
-                      ? Center(
-                    child: Text(
-                      'Aucun commentaire pour l\'instant',
-                      style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
-                    ),
-                  )
-                      : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _comments.length,
-                    itemBuilder: (context, index) {
-                      final comment = _comments[index];
-                      final isOwner = comment.userId == widget.currentUser.id;
+              )
+                  : ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _comments.length,
+                itemBuilder: (context, index) {
+                  final comment = _comments[index];
+                  final isOwner = comment.userId == widget.currentUser.id;
 
-                      return GestureDetector(
-                        onTap: isOwner ? () => _confirmDelete(comment) : null,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.grey.shade200,
-                                backgroundImage: _isValidUrl(comment.profilePicture)
-                                    ? NetworkImage(comment.profilePicture!)
-                                    : null,
-                                child: !_isValidUrl(comment.profilePicture)
-                                    ? const Icon(Icons.person, color: Colors.grey)
-                                    : null,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                  return GestureDetector(
+                    onTap: isOwner ? () => _confirmDelete(comment) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.grey.shade200,
+                            backgroundImage: _isValidUrl(comment.profilePicture)
+                                ? NetworkImage(comment.profilePicture!)
+                                : null,
+                            child: !_isValidUrl(comment.profilePicture)
+                                ? const Icon(Icons.person, color: Colors.grey)
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          comment.username,
-                                          style: GoogleFonts.poppins(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          timeago.format(comment.createdAt, locale: 'fr'),
-                                          style: GoogleFonts.poppins(
-                                            color: Colors.grey.shade600,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
                                     Text(
-                                      comment.content,
-                                      style: GoogleFonts.poppins(fontSize: 14),
+                                      comment.username,
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      timeago.format(comment.createdAt, locale: 'fr'),
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _commentController,
-                            decoration: InputDecoration(
-                              hintText: 'Ajouter un commentaire...',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                const SizedBox(height: 4),
+                                Text(
+                                  comment.content,
+                                  style: GoogleFonts.poppins(fontSize: 14),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
-                          onPressed: _addComment,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
             ),
-          );
-        },
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _commentController,
+                        decoration: InputDecoration(
+                          hintText: 'Ajouter un commentaire...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
+                      onPressed: _addComment,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
