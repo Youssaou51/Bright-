@@ -10,6 +10,7 @@ import 'signup_page.dart';
 import 'user.dart' as local;
 import 'post.dart';
 import 'dashboard_page.dart';
+import 'splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,8 +104,31 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Colors.black),
         ),
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => SplashScreen(
+          nextScreen: FutureBuilder<String?>(
+            future: _checkAuthStatus(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+              final route = snapshot.data;
+              if (route == '/dashboard') {
+                final user = _supabase.auth.currentUser;
+                if (user == null) return LoginPage();
+                final currentUser = local.User(
+                  id: user.id,
+                  username: user.email?.split('@')[0] ?? 'User',
+                  pseudo: user.email ?? 'user@bff.com',
+                  imageUrl: "https://via.placeholder.com/150",
+                );
+                return DashboardPage(currentUser: currentUser);
+              }
+              return LoginPage();
+            },
+          ),
+        ),
         '/': (context) => FutureBuilder<String?>(
           future: _checkAuthStatus(),
           builder: (context, snapshot) {

@@ -15,7 +15,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
-        android:label="bright"
+        android:label="Bright"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
 

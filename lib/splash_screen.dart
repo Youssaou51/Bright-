@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
             Image.asset('assets/images/bright_future_foundation.jpg'), // Make sure to add the image to your assets
             const SizedBox(height: 20),
             const Text(
-              'bright Future FOUNDATION',
+              'Bright Future Foundation',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
