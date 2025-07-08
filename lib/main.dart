@@ -74,13 +74,13 @@ class MyApp extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = _supabase.auth.currentUser != null || (prefs.getBool('isLoggedIn') ?? false);
     print('Auth status check: isLoggedIn = $isLoggedIn, currentUser = ${_supabase.auth.currentUser}, prefs = ${prefs.getBool('isLoggedIn')}');
-    return isLoggedIn ? '/dashboard' : '/login';
+    return isLoggedIn ? '/dashboard' : '/welcome'; // Changed to '/welcome' for unauthenticated
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'BFF',
+      title: 'Bright Future App', // Updated app name
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -106,29 +106,32 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
-        '/splash': (context) => SplashScreen(
-          nextScreen: FutureBuilder<String?>(
-            future: _checkAuthStatus(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(body: Center(child: CircularProgressIndicator()));
-              }
-              final route = snapshot.data;
-              if (route == '/dashboard') {
-                final user = _supabase.auth.currentUser;
-                if (user == null) return LoginPage();
-                final currentUser = local.User(
-                  id: user.id,
-                  username: user.email?.split('@')[0] ?? 'User',
-                  pseudo: user.email ?? 'user@bff.com',
-                  imageUrl: "https://via.placeholder.com/150",
-                );
-                return DashboardPage(currentUser: currentUser);
-              }
-              return LoginPage();
-            },
-          ),
-        ),
+        '/splash': (context) {
+          precacheImage(const AssetImage('assets/images/bright_future_foundation.jpg'), context);
+          return SplashScreen(
+            nextScreen: FutureBuilder<String?>(
+              future: _checkAuthStatus(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                }
+                final route = snapshot.data;
+                if (route == '/dashboard') {
+                  final user = _supabase.auth.currentUser;
+                  if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
+                  final currentUser = local.User(
+                    id: user.id,
+                    username: user.email?.split('@')[0] ?? 'User',
+                    pseudo: user.email ?? 'user@bff.com',
+                    imageUrl: "https://via.placeholder.com/150",
+                  );
+                  return DashboardPage(currentUser: currentUser);
+                }
+                return WelcomePage(); // Default to WelcomePage for unauthenticated
+              },
+            ),
+          );
+        },
         '/': (context) => FutureBuilder<String?>(
           future: _checkAuthStatus(),
           builder: (context, snapshot) {
@@ -138,7 +141,7 @@ class MyApp extends StatelessWidget {
             final route = snapshot.data;
             if (route == '/dashboard') {
               final user = _supabase.auth.currentUser;
-              if (user == null) return LoginPage();
+              if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
               final currentUser = local.User(
                 id: user.id,
                 username: user.email?.split('@')[0] ?? 'User',
@@ -147,7 +150,7 @@ class MyApp extends StatelessWidget {
               );
               return DashboardPage(currentUser: currentUser);
             }
-            return LoginPage();
+            return WelcomePage(); // Default to WelcomePage for unauthenticated
           },
         ),
         '/welcome': (context) => WelcomePage(),
@@ -155,7 +158,7 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => SignupPage(),
         '/dashboard': (context) {
           final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage();
+          if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
           final currentUser = local.User(
             id: user.id,
             username: user.email?.split('@')[0] ?? 'User',
@@ -166,7 +169,7 @@ class MyApp extends StatelessWidget {
         },
         '/profile': (context) {
           final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage();
+          if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
           final currentUser = local.User(
             id: user.id,
             username: user.email?.split('@')[0] ?? 'User',

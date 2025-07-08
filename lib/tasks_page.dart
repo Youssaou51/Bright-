@@ -81,18 +81,10 @@ class _TasksPageState extends State<TasksPage> {
 
   Future<void> _loadTasks() async {
     setState(() => _isLoading = true);
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) {
-      _showErrorSnackBar('No authenticated user found.');
-      setState(() => _isLoading = false);
-      return;
-    }
-
     try {
       final response = await supabase
           .from('tasks')
-          .select()
-          .eq('user_id', userId); // Filter by user_id
+          .select(); // Removed .eq('user_id', userId) to fetch all tasks
 
       if (response != null && response.isNotEmpty) {
         setState(() {
@@ -104,7 +96,7 @@ class _TasksPageState extends State<TasksPage> {
         setState(() {
           _tasks = []; // Explicitly set to empty if no tasks
         });
-        _showErrorSnackBar('No tasks found for this user.');
+        _showErrorSnackBar('No tasks found.');
       }
     } catch (e) {
       print('Error loading tasks: $e');
@@ -279,6 +271,7 @@ class _TasksPageState extends State<TasksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
@@ -287,122 +280,127 @@ class _TasksPageState extends State<TasksPage> {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.arrow_left, color: Color(0xFF1976D2)),
-                  onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
-                ),
-                Text(
-                  DateFormat.yMMMM().format(_selectedMonth),
-                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                IconButton(
-                  icon: Icon(Icons.arrow_right, color: Color(0xFF1976D2)),
-                  onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search tasks',
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Column(
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(
-                    value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
-                    backgroundColor: Colors.grey.shade300,
-                    color: Color(0xFF1976D2),
-                    strokeWidth: 6,
+                  IconButton(
+                    icon: Icon(Icons.arrow_left, color: Color(0xFF1976D2)),
+                    onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
                   ),
-                  const SizedBox(height: 16),
                   Text(
-                    '$_completedTasksCount/${_filteredTasks.length} tasks completed',
-                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
+                    DateFormat.yMMMM().format(_selectedMonth),
+                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.arrow_right, color: Color(0xFF1976D2)),
+                    onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-                  : _filteredTasks.isEmpty
-                  ? Center(
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search tasks',
+                  prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.assignment, size: 64, color: Colors.grey.shade400),
+                    CircularProgressIndicator(
+                      value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
+                      backgroundColor: Colors.grey.shade300,
+                      color: Color(0xFF1976D2),
+                      strokeWidth: 6,
+                    ),
                     const SizedBox(height: 16),
-                    Text('No tasks for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
+                    Text(
+                      '$_completedTasksCount/${_filteredTasks.length} tasks completed',
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
-              )
-                  : ListView.builder(
-                itemCount: _filteredTasks.length,
-                itemBuilder: (context, index) {
-                  final task = _filteredTasks[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 8),
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: Checkbox(
-                        value: task.isCompleted,
-                        onChanged: isAdmin ? (_) => _toggleTaskCompletion(task) : null,
-                        activeColor: Color(0xFF1976D2),
-                      ),
-                      title: Text(
-                        task.title,
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Due: ${DateFormat.yMd().format(task.dueDate)}', style: GoogleFonts.poppins(color: Colors.grey.shade600)),
-                          const SizedBox(height: 4),
-                          Chip(
-                            label: Text(
-                              task.priority.name.capitalize(),
-                              style: GoogleFonts.poppins(color: Colors.white),
-                            ),
-                            backgroundColor: task.priority == Priority.low
-                                ? Colors.green
-                                : task.priority == Priority.medium
-                                ? Colors.orange
-                                : Colors.red,
-                          ),
-                        ],
-                      ),
-                      trailing: isAdmin
-                          ? IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red.shade400),
-                        onPressed: () => _deleteTask(task),
-                      )
-                          : null,
-                    ),
-                  );
-                },
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              SizedBox(
+                height: MediaQuery.of(context).size.height - 300,
+                child: _isLoading
+                    ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
+                    : _filteredTasks.isEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.assignment, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text('No tasks for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                )
+                    : ListView.builder(
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemCount: _filteredTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = _filteredTasks[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        leading: Checkbox(
+                          value: task.isCompleted,
+                          onChanged: isAdmin ? (_) => _toggleTaskCompletion(task) : null,
+                          activeColor: Color(0xFF1976D2),
+                        ),
+                        title: Text(
+                          task.title,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Due: ${DateFormat.yMd().format(task.dueDate)}', style: GoogleFonts.poppins(color: Colors.grey.shade600)),
+                            const SizedBox(height: 4),
+                            Chip(
+                              label: Text(
+                                task.priority.name.capitalize(),
+                                style: GoogleFonts.poppins(color: Colors.white),
+                              ),
+                              backgroundColor: task.priority == Priority.low
+                                  ? Colors.green
+                                  : task.priority == Priority.medium
+                                  ? Colors.orange
+                                  : Colors.red,
+                            ),
+                          ],
+                        ),
+                        trailing: isAdmin
+                            ? IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red.shade400),
+                          onPressed: () => _deleteTask(task),
+                        )
+                            : null,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: isAdmin

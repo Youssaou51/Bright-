@@ -334,7 +334,7 @@ class _ProfilePageState extends State<ProfilePage> with SingleTickerProviderStat
     try {
       await _supabase.auth.signOut();
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/');
+        Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false); // Changed to '/welcome'
       }
     } catch (e) {
       print('Dashboard - Sign-out error: $e');
