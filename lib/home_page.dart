@@ -47,8 +47,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       duration: const Duration(milliseconds: 300),
     );
     timeago.setLocaleMessages('fr', timeago.FrMessages());
+    _checkIfAdmin();
     _fetchPosts();
     _loadInitialLikes();
+  }
+
+  Future<void> _checkIfAdmin() async {
+    final userId = widget.currentUser.id;
+    final response = await _supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+    if (response != null && response['role'] == 'admin') {
+      setState(() {
+        // Update currentUser.role if mutable, or manage admin state separately
+      });
+    }
   }
 
   Future<void> _fetchPosts() async {
@@ -207,10 +222,59 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     Share.share(shareText, subject: 'Check out this post from Bright Future Foundation!');
   }
 
+  Future<void> _deletePost(Post post) async {
+    try {
+      await _supabase
+          .from('posts')
+          .delete()
+          .eq('id', post.id);
+      await widget.refreshPosts();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Post supprimé avec succès!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Delete error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur lors de la suppression du post: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _showDeleteDialog(Post post) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le post'),
+        content: const Text('Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deletePost(post);
+            },
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPostItem(Post post, int index) {
     final isLiked = _likedPostIds.contains(post.id);
     final hasImages = post.imageUrls.isNotEmpty;
     final hasVideos = post.videoUrls.isNotEmpty;
+    final isOwner = post.userId == widget.currentUser.id;
+    final isAdmin = widget.currentUser.role == 'admin';
 
     return AnimatedOpacity(
       duration: Duration(milliseconds: 300 + (100 * index % 300)),
@@ -260,9 +324,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                         ],
                       ),
                     ),
-                    IconButton(
+                    PopupMenuButton<String>(
                       icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
-                      onPressed: () {},
+                      onSelected: (value) {
+                        if (value == 'delete' && (isOwner || isAdmin)) {
+                          _showDeleteDialog(post);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (isOwner || isAdmin)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Supprimer'),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -318,7 +393,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     child: ClipRRect(
                       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                       child: AspectRatio(
-                        aspectRatio: 9/16,
+                        aspectRatio: 9 / 16,
                         child: ChewieVideoWidget(url: post.videoUrls[0]),
                       ),
                     ),
@@ -644,6 +719,7 @@ class ChewieVideoWidget extends StatefulWidget {
 class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
+  bool _isPlaying = false;
 
   @override
   void initState() {
@@ -662,8 +738,8 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
             aspectRatio: widget.forceVertical ?? false
                 ? 9 / 16
                 : _videoPlayerController.value.aspectRatio,
-            autoPlay: true,
-            looping: true,
+            autoPlay: false,
+            looping: false,
             showControls: true,
             materialProgressColors: ChewieProgressColors(
               playedColor: Color(0xFF1976D2),
@@ -674,7 +750,7 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
             placeholder: Container(
               color: Colors.black,
               child: const Center(
-                child: CircularProgressIndicator(),
+                child: Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
               ),
             ),
             errorBuilder: (context, errorMessage) {
@@ -699,9 +775,23 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
         });
       }
     } catch (e) {
+      print('Video initialization error: $e');
       if (mounted) {
         setState(() {});
       }
+    }
+  }
+
+  void _togglePlay() {
+    if (_chewieController != null) {
+      if (_isPlaying) {
+        _chewieController!.pause();
+      } else {
+        _chewieController!.play();
+      }
+      setState(() {
+        _isPlaying = !_isPlaying;
+      });
     }
   }
 
@@ -715,7 +805,12 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
   @override
   Widget build(BuildContext context) {
     if (_chewieController != null && _videoPlayerController.value.isInitialized) {
-      return Chewie(controller: _chewieController!);
+      return GestureDetector(
+        onTap: _togglePlay,
+        child: Chewie(
+          controller: _chewieController!,
+        ),
+      );
     } else {
       return Container(
         color: Colors.black,

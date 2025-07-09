@@ -2,6 +2,7 @@ import 'dart:convert'; // Garder si vous l'utilisez ailleurs, sinon il peut êtr
 
 class Post {
   final String id;
+  final String userId; // Added userId field to match the posts table
   final String username;
   final String? profilePicture;
   final String? caption;
@@ -13,6 +14,7 @@ class Post {
 
   Post({
     required this.id,
+    required this.userId,
     required this.username,
     this.profilePicture,
     this.caption,
@@ -26,6 +28,7 @@ class Post {
   factory Post.fromJson(Map<String, dynamic> json) {
     return Post(
       id: json['id'] as String,
+      userId: json['user_id'] as String, // Map to user_id from the database
       username: json['username'] as String,
       profilePicture: json['profile_picture'] as String?,
       caption: json['caption'] as String?,
@@ -43,6 +46,7 @@ class Post {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'user_id': userId, // Include user_id in the JSON output
       'username': username,
       'profile_picture': profilePicture,
       'caption': caption,
