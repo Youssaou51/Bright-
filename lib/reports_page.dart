@@ -46,26 +46,32 @@ class _ReportsPageState extends State<ReportsPage> {
 
       setState(() => reports = List<Map<String, dynamic>>.from(response));
     } catch (e) {
-      _showError('Oops! Failed to load reports: $e');
+      print('Error fetching reports: $e'); // Pour dev
+      _showError('⚠️ Impossible de charger les rapports. Vérifie ta connexion Internet.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
   Future<void> _checkIfAdmin() async {
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
 
-    final response = await _supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+      final response = await _supabase
+          .from('users')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
 
-    if (response != null && response['role'] == 'admin') {
-      setState(() {
-        isAdmin = true;
-      });
+      if (response != null && response['role'] == 'admin') {
+        setState(() {
+          isAdmin = true;
+        });
+      }
+    } catch (e) {
+      print('Error checking admin role: $e');
+      // Pas de snack, ce n’est pas critique
     }
   }
 
@@ -82,7 +88,10 @@ class _ReportsPageState extends State<ReportsPage> {
         final file = result.files.single;
         final userId = _supabase.auth.currentUser?.id;
 
-        if (userId == null) throw Exception('User not authenticated');
+        if (userId == null) {
+          _showError('⚠️ Tu dois être connecté pour uploader un rapport.');
+          return;
+        }
 
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final filePath = 'report_${timestamp}_${file.name.replaceAll(' ', '_')}';
@@ -90,23 +99,38 @@ class _ReportsPageState extends State<ReportsPage> {
         await _supabase.storage.from('reports').upload(filePath, File(file.path!));
         final fileUrl = _supabase.storage.from('reports').getPublicUrl(filePath);
 
-        await _supabase.from('reports').insert({
+        final inserted = await _supabase.from('reports').insert({
           'name': file.name,
           'file_url': fileUrl,
           'file_path': filePath,
           'user_id': userId,
           'created_at': DateTime.now().toIso8601String(),
-        });
+        }).select().single();
+
+        // 🔔 Notification via Edge Function
+        await _supabase.functions.invoke(
+          'sendNotification',
+          body: {
+            'table': 'reports',
+            'record': {
+              'id': inserted['id'],
+              'name': file.name,
+              'user_id': userId,
+            },
+          },
+        );
 
         await _fetchReports();
         _showSuccess('🚀 ${file.name} uploaded successfully!');
       }
     } catch (e) {
-      _showError('Upload failed: $e');
+      print('Error uploading report: $e');
+      _showError('⚠️ Impossible d’uploader le rapport. Vérifie ta connexion.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
+
 
   Future<void> _deleteReport(String id, String filePath, int index) async {
     try {
@@ -119,9 +143,10 @@ class _ReportsPageState extends State<ReportsPage> {
       await _supabase.from('reports').delete().eq('id', id);
 
       await _fetchReports();
-      _showSuccess('🗑️ Report deleted successfully');
+      _showSuccess('🗑️ Rapport supprimé avec succès');
     } catch (e) {
-      _showError('Delete failed: $e');
+      print('Error deleting report: $e');
+      _showError('⚠️ Impossible de supprimer le rapport.');
     } finally {
       if (mounted) {
         setState(() {
@@ -232,7 +257,10 @@ class _ReportsPageState extends State<ReportsPage> {
               color: Color(0xFF1976D2),
               child: reports.isEmpty
                   ? Center(
-                child: Text('No reports for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
+                child: Text(
+                  'Aucun rapport pour ce mois.',
+                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
+                ),
               )
                   : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -249,7 +277,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       if (url != null && await canLaunchUrl(Uri.parse(url))) {
                         await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                       } else {
-                        _showError('Could not open the report.');
+                        _showError('⚠️ Impossible d’ouvrir le rapport.');
                       }
                     },
                   );
@@ -318,8 +346,8 @@ class _ReportCard extends StatelessWidget {
         title: Text(
           report['name'],
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-          overflow: TextOverflow.ellipsis, // Moved overflow here
-          maxLines: 1, // Added to limit to one line
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
         trailing: isAdmin
             ? (isDeleting

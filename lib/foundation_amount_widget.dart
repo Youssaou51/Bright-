@@ -31,29 +31,27 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
   }
 
   Future<void> _loadAmount() async {
+    setState(() => _isLoading = true);
+
     try {
-      setState(() {
-        _isLoading = true;
-      });
       final response = await widget.supabase
           .from('funds')
           .select('amount')
           .eq('id', 'foundation-funds')
           .single();
-      print('Funds response: $response');
+
       final amount = (response['amount'] as num?)?.toDouble() ?? widget.initialAmount;
       widget.onAmountUpdated(amount);
-      setState(() {
-        _isLoading = false;
-      });
     } catch (e) {
-      print('Error loading funds: $e');
+      print('Error loading funds: $e'); // pour debug seulement
       setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString();
+        _errorMessage = 'Failed to load funds.'; // message court pour l’utilisateur
       });
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

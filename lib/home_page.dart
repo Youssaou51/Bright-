@@ -9,6 +9,9 @@ import 'package:video_player/video_player.dart';
 import 'post.dart';
 import 'comments_page.dart';
 import 'user.dart' as AppUser;
+import 'utils/error_handler.dart';
+import 'utils/network_helper.dart';
+
 
 class HomePage extends StatefulWidget {
   final List<Post> posts;
@@ -73,60 +76,72 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         _errorMessage = null;
       });
     }
-    try {
-      final List<Map<String, dynamic>> response = await _supabase
+
+    final response = await runNetworkCall(
+      context: context,
+      networkCall: () => _supabase
           .from('posts')
           .select('''
-            *,
-            likes_count:likes(count),
-            comment_count:comments(count)
-          ''')
+          *,
+          likes_count:likes(count),
+          comment_count:comments(count)
+        ''')
           .order('timestamp', ascending: false)
-          .limit(50);
-      final List<Post> fetchedPosts = response.map((data) {
-        final int likesCount = (data['likes_count'] as List?)?.isNotEmpty == true
-            ? data['likes_count'][0]['count'] as int
-            : 0;
-        final int commentCount = (data['comment_count'] as List?)?.isNotEmpty == true
-            ? data['comment_count'][0]['count'] as int
-            : 0;
-        final Map<String, dynamic> postData = Map.from(data);
-        postData['likes_count'] = likesCount;
-        postData['comment_count'] = commentCount;
-        return Post.fromJson(postData);
-      }).toList();
+          .limit(50),
+      errorMessage: 'Impossible de charger les posts. Vérifiez votre connexion.',
+    );
+
+    if (response == null) {
       if (mounted) {
         setState(() {
-          _posts = fetchedPosts;
           _isLoading = false;
+          _errorMessage = 'Erreur réseau. Réessayez plus tard.';
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Impossible de charger les posts. Veuillez vérifier votre connexion.';
-          _isLoading = false;
-        });
-      }
+      return;
+    }
+
+    final List<Post> fetchedPosts = (response as List).map((data) {
+      final likesCount = (data['likes_count'] as List?)?.isNotEmpty == true
+          ? data['likes_count'][0]['count'] as int
+          : 0;
+      final commentCount = (data['comment_count'] as List?)?.isNotEmpty == true
+          ? data['comment_count'][0]['count'] as int
+          : 0;
+      final Map<String, dynamic> postData = Map<String, dynamic>.from(data)
+        ..['likes_count'] = likesCount
+        ..['comment_count'] = commentCount;
+      return Post.fromJson(postData);
+    }).toList();
+
+    if (mounted) {
+      setState(() {
+        _posts = fetchedPosts;
+        _isLoading = false;
+      });
     }
   }
 
+
   Future<void> _loadInitialLikes() async {
-    try {
-      final response = await _supabase
+    final response = await runNetworkCall(
+      context: context,
+      networkCall: () => _supabase
           .from('likes')
           .select('post_id')
           .eq('user_id', widget.currentUser.id)
-          .timeout(const Duration(seconds: 5));
-      if (mounted) {
-        setState(() {
-          _likedPostIds = response.map<String>((like) => like['post_id'] as String).toSet();
-        });
-      }
-    } catch (e) {
-      print('Error loading initial likes: $e');
+          .timeout(const Duration(seconds: 5)),
+      errorMessage: 'Erreur de chargement des likes initiaux.',
+    );
+
+    if (response != null && mounted) {
+      setState(() {
+        _likedPostIds =
+            (response as List).map<String>((like) => like['post_id'] as String).toSet();
+      });
     }
   }
+
 
   Future<void> _toggleLike(Post post) async {
     final userId = widget.currentUser.id;
@@ -223,11 +238,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _deletePost(Post post) async {
-    try {
-      await _supabase
+    final result = await runNetworkCall(
+      context: context,
+      networkCall: () => _supabase
           .from('posts')
           .delete()
-          .eq('id', post.id);
+          .eq('id', post.id),
+      errorMessage: 'Erreur lors de la suppression du post.',
+    );
+
+    if (result != null) {
       await widget.refreshPosts();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -235,16 +255,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           backgroundColor: Colors.green,
         ),
       );
-    } catch (e) {
-      print('Delete error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de la suppression du post: $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
     }
   }
+
 
   void _showDeleteDialog(Post post) {
     showDialog(

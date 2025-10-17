@@ -82,10 +82,7 @@ class _TasksPageState extends State<TasksPage> {
   Future<void> _loadTasks() async {
     setState(() => _isLoading = true);
     try {
-      final response = await supabase
-          .from('tasks')
-          .select(); // Removed .eq('user_id', userId) to fetch all tasks
-
+      final response = await supabase.from('tasks').select();
       if (response != null && response.isNotEmpty) {
         setState(() {
           _tasks = List<Map<String, dynamic>>.from(response)
@@ -93,17 +90,12 @@ class _TasksPageState extends State<TasksPage> {
               .toList();
         });
       } else {
-        setState(() {
-          _tasks = []; // Explicitly set to empty if no tasks
-        });
-        _showErrorSnackBar('No tasks found.');
+        setState(() => _tasks = []);
+        _showErrorSnackBar('Aucune tâche trouvée.');
       }
     } catch (e) {
-      print('Error loading tasks: $e');
-      _showErrorSnackBar('Failed to load tasks: $e');
-      setState(() {
-        _tasks = []; // Reset tasks on error
-      });
+      _showErrorSnackBar('Erreur de connexion au serveur.');
+      setState(() => _tasks = []);
     } finally {
       setState(() => _isLoading = false);
     }
@@ -148,11 +140,14 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _showErrorSnackBar(String message) {
-    final snackBar = SnackBar(
-      content: Text(message, style: GoogleFonts.poppins()),
-      backgroundColor: Colors.red,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Future<void> _deleteTask(Task task) async {

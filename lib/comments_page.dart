@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'comment.dart';
 import 'post.dart';
 import 'user.dart' as AppUser;
+import 'utils/error_handler.dart';
 
 class CommentsPage extends StatefulWidget {
   final Post post;
@@ -37,6 +38,15 @@ class _CommentsPageState extends State<CommentsPage> {
 
   Future<void> _loadComments() async {
     try {
+      final hasConnection = await ErrorHandler.checkInternetConnection();
+      if (!hasConnection) {
+        setState(() {
+          _isLoading = false;
+          _error = "Aucune connexion Internet. Réessaie plus tard.";
+        });
+        return;
+      }
+
       setState(() {
         _isLoading = true;
         _error = null;
@@ -45,9 +55,9 @@ class _CommentsPageState extends State<CommentsPage> {
       final response = await _supabase
           .from('comments')
           .select('''
-            id, post_id, user_id, content, created_at,
-            users:users!user_id(username, profile_picture)
-          ''')
+          id, post_id, user_id, content, created_at,
+          users:users!user_id(username, profile_picture)
+        ''')
           .eq('post_id', widget.post.id)
           .order('created_at', ascending: true)
           .timeout(const Duration(seconds: 5));
@@ -60,13 +70,86 @@ class _CommentsPageState extends State<CommentsPage> {
       });
 
       _scrollToBottom();
-    } catch (e) {
+    } catch (error) {
       setState(() {
         _isLoading = false;
-        _error = 'Erreur de chargement des commentaires : $e';
+        _error = "Impossible de charger les commentaires. Vérifie ta connexion.";
       });
+      ErrorHandler.handleException(context, error);
     }
   }
+
+  Future<void> _addComment() async {
+    final content = _commentController.text.trim();
+    if (content.isEmpty) return;
+
+    try {
+      final hasConnection = await ErrorHandler.checkInternetConnection();
+      if (!hasConnection) {
+        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        return;
+      }
+
+      // 🔹 Insérer le commentaire et récupérer le résultat
+      final inserted = await _supabase.from('comments').insert({
+        'post_id': widget.post.id,
+        'user_id': widget.currentUser.id,
+        'content': content,
+      }).select().single();
+
+      final insertedId = inserted['id'];
+
+      // 🔹 Appeler l'Edge Function pour envoyer la notification
+      await _supabase.functions.invoke(
+        'sendNotification',
+        body: {
+          'table': 'comments',
+          'record': {
+            'id': insertedId,
+            'post_id': widget.post.id,
+            'user_id': widget.currentUser.id,
+            'content': content,
+            'user_name': widget.currentUser.username,
+          },
+        },
+      );
+
+      _commentController.clear();
+
+      setState(() {
+        widget.post.commentCount++;
+      });
+
+      await _loadComments();
+
+      ErrorHandler.showSuccess(context, "Commentaire ajouté !");
+    } catch (error) {
+      ErrorHandler.handleException(context, error);
+    }
+  }
+
+
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      final hasConnection = await ErrorHandler.checkInternetConnection();
+      if (!hasConnection) {
+        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        return;
+      }
+
+      await _supabase.from('comments').delete().eq('id', commentId);
+
+      setState(() {
+        _comments.removeWhere((c) => c.id == commentId);
+        widget.post.commentCount--;
+      });
+
+      ErrorHandler.showSuccess(context, "Commentaire supprimé !");
+    } catch (error) {
+      ErrorHandler.handleException(context, error);
+    }
+  }
+
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -80,59 +163,7 @@ class _CommentsPageState extends State<CommentsPage> {
     });
   }
 
-  Future<void> _addComment() async {
-    final content = _commentController.text.trim();
-    if (content.isEmpty) return;
 
-    try {
-      await _supabase.from('comments').insert({
-        'post_id': widget.post.id,
-        'user_id': widget.currentUser.id,
-        'content': content,
-      });
-
-      _commentController.clear();
-
-      setState(() {
-        widget.post.commentCount++;
-      });
-
-      await _loadComments();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Commentaire ajouté')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de l\'ajout du commentaire : $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
-  }
-
-  Future<void> _deleteComment(String commentId) async {
-    try {
-      await _supabase.from('comments').delete().eq('id', commentId);
-
-      setState(() {
-        _comments.removeWhere((c) => c.id == commentId);
-        widget.post.commentCount--;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Commentaire supprimé')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur lors de la suppression : $e'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
-  }
 
   void _confirmDelete(Comment comment) {
     showDialog(

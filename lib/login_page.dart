@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dashboard_page.dart';
 import 'user.dart' as local;
 
@@ -16,10 +17,39 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   final _formKey = GlobalKey<FormState>();
 
+  Future<void> _registerFcmToken(String userId) async {
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        await Supabase.instance.client
+            .from('users')
+            .update({'fcm_token': fcmToken})
+            .eq('id', userId);
+        print("✅ Token FCM enregistré pour l’utilisateur $userId : $fcmToken");
+      } else {
+        print("⚠️ Impossible d’obtenir le token FCM.");
+      }
+    } catch (e) {
+      print("❌ Erreur enregistrement FCM token : $e");
+    }
+  }
+
   Future<void> _signIn(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+
+    void _showMessage(String message, {bool isError = false}) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: _emailController.text.trim(),
@@ -27,81 +57,75 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final user = response.user;
-      if (user != null) {
-        final userData = await Supabase.instance.client
-            .from('users')
-            .select('is_active, username, profile_picture')
-            .eq('id', user.id)
-            .maybeSingle();
+      if (user == null) {
+        _showMessage('Impossible de se connecter.', isError: true);
+        return;
+      }
 
-        final isActive = userData?['is_active'] ?? false;
+      final userData = await Supabase.instance.client
+          .from('users')
+          .select('is_active, username, profile_picture')
+          .eq('id', user.id)
+          .maybeSingle();
 
-        if (!isActive) {
-          await Supabase.instance.client.auth.signOut();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("Your account is not yet activated. Please wait for admin approval."),
-              backgroundColor: Colors.orange.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          return;
-        }
+      final isActive = userData?['is_active'] ?? false;
 
-        final prefs = await SharedPreferences.getInstance();
-        final session = response.session;
-        if (session != null) {
-          if (session.refreshToken != null) {
-            await prefs.setString('refreshToken', session.refreshToken!);
-            print('Refresh token stored: ${session.refreshToken}');
-          } else {
-            print('Warning: No refresh token available in session');
-          }
-          await prefs.setBool('isLoggedIn', true);
-        } else {
-          print('Warning: Session is null after login');
-        }
+      if (!isActive) {
+        await Supabase.instance.client.auth.signOut();
+        _showMessage("Compte non activé. Attendez l'approbation de l'admin.", isError: true);
+        return;
+      }
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DashboardPage(
-              currentUser: local.User(
-                id: user.id,
-                username: userData?['username'] ?? user.email ?? 'User',
-                pseudo: userData?['username'] ?? user.email ?? 'User',
-                imageUrl: userData?['profile_picture'] ?? "https://via.placeholder.com/150",
-              ),
+      // 🔹 Sauvegarde du refreshToken localement
+      final prefs = await SharedPreferences.getInstance();
+      final session = response.session;
+      if (session?.refreshToken != null) {
+        await prefs.setString('refreshToken', session!.refreshToken!);
+        await prefs.setBool('isLoggedIn', true);
+      }
+
+      // 🔹 Enregistrement du token FCM
+      await _registerFcmToken(user.id);
+
+      // 🔹 Message de succès
+      _showMessage('Connexion réussie !');
+
+      // 🔹 Redirection vers Dashboard
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardPage(
+            currentUser: local.User(
+              id: user.id,
+              username: userData?['username'] ?? user.email ?? 'User',
+              pseudo: userData?['username'] ?? user.email ?? 'User',
+              imageUrl: userData?['profile_picture'] ?? "https://via.placeholder.com/150",
             ),
           ),
-        );
-      }
+        ),
+      );
     } on AuthException catch (e) {
       final isInvalid = e.message.toLowerCase().contains('invalid login');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isInvalid ? 'Invalid email or password.' : 'Auth Error: ${e.message}',
-          ),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showMessage(isInvalid ? 'Email ou mot de passe invalide.' : 'Erreur Auth', isError: true);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unexpected error: $e'),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showMessage('Erreur inattendue.', isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
+
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +141,8 @@ class _LoginPageState extends State<LoginPage> {
       ),
       body: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 100),
+          constraints:
+          BoxConstraints(minHeight: MediaQuery.of(context).size.height - 100),
           child: IntrinsicHeight(
             child: Padding(
               padding: const EdgeInsets.all(32.0),
@@ -175,9 +200,11 @@ class _LoginPageState extends State<LoginPage> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: _inputDecoration('Email', 'Enter your email', Icons.email_outlined),
+                      decoration: _inputDecoration(
+                          'Email', 'Enter your email', Icons.email_outlined),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Email is required';
+                        if (value == null || value.isEmpty)
+                          return 'Email is required';
                         if (!value.contains('@')) return 'Enter a valid email';
                         return null;
                       },
@@ -185,11 +212,14 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 20),
                     TextFormField(
                       controller: _passwordController,
-                      decoration: _inputDecoration('Password', 'Enter your password', Icons.lock_outline)
+                      decoration: _inputDecoration(
+                          'Password', 'Enter your password', Icons.lock_outline)
                           .copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                             color: Colors.grey.shade600,
                           ),
                           onPressed: () {
@@ -201,7 +231,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       obscureText: _obscurePassword,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Password is required';
+                        if (value == null || value.isEmpty)
+                          return 'Password is required';
                         if (value.length < 6) return 'Minimum 6 characters';
                         return null;
                       },
@@ -213,9 +244,11 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('Reset password feature coming soon!'),
+                              content: const Text(
+                                  'Reset password feature coming soon!'),
                               behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                             ),
                           );
                         },
@@ -299,7 +332,8 @@ class _LoginPageState extends State<LoginPage> {
       ),
       filled: true,
       fillColor: Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      contentPadding:
+      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       labelStyle: TextStyle(color: Colors.grey.shade600),
       hintStyle: TextStyle(color: Colors.grey.shade500),
     );

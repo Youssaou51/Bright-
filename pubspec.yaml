@@ -42,7 +42,7 @@ dependencies:
 #  gallery_saver: ^2.3.2
 #  image_cropper: ^4.0.1
   path_provider: ^2.1.5
-  supabase_flutter: ^2.9.1
+  supabase_flutter: ^2.10.3
   video_player: ^2.9.3
   postgrest: ^2.4.1
 #  flutter_image_compress: ^2.4.0
@@ -58,10 +58,11 @@ dependencies:
   chewie: ^1.7.4
 #  gallery_saver: ^2.3.2
 #  google_fonts: ^4.0.4
-#  firebase_core: ^3.14.0
-#  firebase_messaging: ^15.2.7
-#  flutter_local_notifications: ^17.1.2
+  firebase_core: ^4.1.1
+  firebase_messaging: ^16.0.2
+  flutter_local_notifications: ^19.4.2
   shared_preferences: ^2.2.2
+  connectivity_plus: ^7.0.0
 
 
 
@@ -75,13 +76,15 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
 
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/bright_future_foundation.jpg"
-
+#  image_path: "assets/images/bright_future_foundation.jpg"
+  image_path: "assets/images/bight_logo.jpg"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/bight_logo.jpg"
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
@@ -104,6 +107,7 @@ flutter:
   assets:
   #   - images/a_dot_burr.jpeg
    - assets/images/bright_future_foundation.jpg
+   - assets/images/bight_logo.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

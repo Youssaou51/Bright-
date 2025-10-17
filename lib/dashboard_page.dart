@@ -11,6 +11,10 @@ import 'tasks_page.dart';
 import 'post.dart';
 import 'user.dart' as local;
 import 'foundation_amount_widget.dart';
+import 'utils/error_handler.dart';
+import 'dart:async';
+import 'dart:io';
+
 
 class DashboardPage extends StatefulWidget {
   final local.User currentUser;
@@ -45,27 +49,56 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   Future<void> _checkUserRole() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
-      setState(() {
-        _isAdmin = false;
-      });
+      setState(() => _isAdmin = false);
       return;
     }
+
     try {
-      final userRoleResponse = await _supabase
+      final response = await _supabase
           .from('users')
           .select('role')
           .eq('id', user.id)
-          .single();
-      final userRole = userRoleResponse['role'] as String? ?? 'user';
-      print('Rôle récupéré depuis la table users : $userRole');
-      setState(() {
-        _isAdmin = userRole.toLowerCase() == 'admin';
-      });
+          .single()
+          .timeout(const Duration(seconds: 6));
+
+      final role = response['role'] as String? ?? 'user';
+      print('✅ Rôle utilisateur : $role');
+
+      setState(() => _isAdmin = role.toLowerCase() == 'admin');
+    } on SocketException {
+      print('⚠️ Aucune connexion Internet.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pas de connexion Internet.',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } on TimeoutException {
+      print('⏳ Timeout lors de la vérification du rôle utilisateur.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Le serveur met trop de temps à répondre.',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
     } catch (e) {
       print('Erreur lors de la vérification du rôle utilisateur : $e');
-      setState(() {
-        _isAdmin = false;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur inattendue. Rôle par défaut : utilisateur.',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      setState(() => _isAdmin = false);
     }
   }
 
@@ -76,15 +109,50 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           .select('amount')
           .eq('id', 'foundation-funds')
           .single()
-          .catchError((e) => print('Error loading initial amount: $e'));
-      setState(() {
-        _currentAmount = (response['amount'] as num?)?.toDouble() ?? 0.0;
-      });
+          .timeout(const Duration(seconds: 6));
+
+      final amount = (response['amount'] as num?)?.toDouble() ?? 0.0;
+      print('💰 Montant initial chargé : $amount');
+
+      if (mounted) {
+        setState(() => _currentAmount = amount);
+      }
+    } on SocketException {
+      print('⚠️ Pas de connexion Internet.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Impossible de charger le montant (hors ligne).',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        setState(() => _currentAmount = 0.0);
+      }
+    } on TimeoutException {
+      print('⏳ Timeout lors du chargement du montant.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Temps de réponse dépassé. Réessayez plus tard.',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+        setState(() => _currentAmount = 0.0);
+      }
     } catch (e) {
-      print('Error loading initial amount: $e');
-      setState(() {
-        _currentAmount = 0.0;
-      });
+      print('Erreur inattendue : $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors du chargement du montant.',
+                style: GoogleFonts.poppins()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        setState(() => _currentAmount = 0.0);
+      }
     }
   }
 
@@ -307,25 +375,36 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
   Future<void> _addPost(List<File> images, List<File> videos, String caption) async {
     try {
-      final postId = Uuid().v4();
+      final hasConnection = await ErrorHandler.checkInternetConnection();
+      if (!hasConnection) {
+        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        return;
+      }
+
+      final postId = const Uuid().v4();
       List<String> imageUrls = [];
       List<String> videoUrls = [];
+
       for (var image in images) {
         final path = 'posts/images/$postId-${image.path.split('/').last}';
         await _supabase.storage.from('posts').upload(path, image);
         imageUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
+
       for (var video in videos) {
         final path = 'posts/videos/$postId-${video.path.split('/').last}';
         await _supabase.storage.from('posts').upload(path, video);
         videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
+
       final userResponse = await _supabase
           .from('users')
           .select('profile_picture')
           .eq('id', widget.currentUser.id)
           .single();
+
       final profilePictureUrl = userResponse['profile_picture'] as String?;
+
       final post = {
         'id': postId,
         'user_id': widget.currentUser.id,
@@ -337,30 +416,35 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         'video_urls': videoUrls,
         'timestamp': DateTime.now().toIso8601String(),
       };
-      await _supabase.from('posts').insert(post);
+
+      final inserted = await _supabase.from('posts').insert(post).select().single();
+
+      // 🔔 Notification via Edge Function
+      await _supabase.functions.invoke(
+        'sendNotification',
+        body: {
+          'table': 'posts',
+          'record': {
+            'id': inserted['id'],
+            'title': caption,
+            'user_id': widget.currentUser.id,
+            'user_name': widget.currentUser.username,
+          },
+        },
+      );
+
       await _loadPosts();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Post publié !', style: GoogleFonts.poppins()),
-          backgroundColor: Colors.teal[700]!,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur : $e', style: GoogleFonts.poppins()),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      ErrorHandler.showSuccess(context, "Post publié avec succès !");
+    } catch (error) {
+      ErrorHandler.handleException(context, error);
     }
   }
 
+
+
   void _showUpdateFundsDialog() {
     final _controller = TextEditingController();
+
     showDialog(
       context: context,
       builder: (dialogContext) => Dialog(
@@ -422,53 +506,96 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                   ElevatedButton(
                     onPressed: () async {
                       final enteredAmount = double.tryParse(_controller.text);
-                      if (enteredAmount != null && enteredAmount >= 0) {
-                        print('Updating funds to $enteredAmount');
-                        try {
-                          final response = await _supabase.from('funds').upsert({
-                            'id': 'foundation-funds',
-                            'amount': enteredAmount,
-                            'updated_by': widget.currentUser.username,
-                            'updated_at': DateTime.now().toIso8601String(),
-                          });
-                          print('Update funds response: $response');
-                          setState(() {
-                            _currentAmount = enteredAmount;
-                          });
-                          Navigator.pop(dialogContext);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Montant mis à jour avec succès !',
-                                  style: GoogleFonts.poppins()),
-                              backgroundColor: Colors.teal[700]!,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                          );
-                        } catch (error) {
-                          print('Error updating funds: $error');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Erreur mise à jour : $error',
-                                  style: GoogleFonts.poppins()),
-                              backgroundColor: Colors.redAccent,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                          );
-                        }
-                      } else {
-                        print('Invalid amount entered');
+                      if (enteredAmount == null || enteredAmount < 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Veuillez entrer un montant valide',
-                                style: GoogleFonts.poppins()),
+                            content: Text(
+                              'Veuillez entrer un montant valide',
+                              style: GoogleFonts.poppins(),
+                            ),
                             backgroundColor: Colors.redAccent,
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      print('Updating funds to $enteredAmount');
+
+                      try {
+                        await _supabase
+
+                            .from('funds')
+                            .upsert({
+                          'id': 'foundation-funds',
+                          'amount': enteredAmount,
+                          'updated_by': widget.currentUser.username,
+                          'updated_at': DateTime.now().toIso8601String(),
+                        })
+                            .timeout(const Duration(seconds: 6));
+
+                        setState(() {
+                          _currentAmount = enteredAmount;
+                        });
+
+                        Navigator.pop(dialogContext);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Montant mis à jour avec succès !',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.teal[700]!,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      } on TimeoutException {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '⏳ La connexion a expiré. Vérifiez votre réseau.',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.orangeAccent,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      } on SocketException {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '⚠️ Pas de connexion Internet. Réessayez plus tard.',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.redAccent,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      } catch (error) {
+                        print('Unexpected error updating funds: $error');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '❌ Erreur inattendue. Veuillez réessayer.',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: Colors.redAccent,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                         );
                       }
@@ -498,6 +625,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       print('Error showing update funds dialog: $error');
     });
   }
+
 
   @override
   Widget build(BuildContext context) {

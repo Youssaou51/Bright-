@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
-  final Widget nextScreen;
+  final Widget? nextScreen; // <-- nullable maintenant
 
-  const SplashScreen({super.key, required this.nextScreen});
+  const SplashScreen({super.key, this.nextScreen}); // <-- supprimé "required"
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -13,24 +13,25 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Wait for 2 seconds then navigate to next screen
+    // Attente de 2 secondes avant navigation
     Future.delayed(const Duration(seconds: 5), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => widget.nextScreen),
-      );
+      if (widget.nextScreen != null && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => widget.nextScreen!),
+        );
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // or any color you prefer
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Replace with your actual logo image
-            Image.asset('assets/images/bright_future_foundation.jpg'), // Make sure to add the image to your assets
+            Image.asset('assets/images/bright_future_foundation.jpg'),
             const SizedBox(height: 20),
             const Text(
               'Bright Future Foundation',
@@ -39,6 +40,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(), // un petit loader
           ],
         ),
       ),

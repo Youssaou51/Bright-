@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dashboard_page.dart';
-import 'user.dart' as local;
 
 class SignupPage extends StatefulWidget {
   @override
@@ -16,72 +16,79 @@ class _SignupPageState extends State<SignupPage> {
   bool _obscurePassword = true;
   final _formKey = GlobalKey<FormState>();
 
+  final supabase = Supabase.instance.client;
+
   Future<void> _signUp(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
+
+    void _showMessage(String message, {bool isError = false}) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
 
     try {
-      final response = await Supabase.instance.client.auth.signUp(
+      // 🔐 Créer un nouvel utilisateur Supabase
+      final response = await supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       final user = response.user;
+      if (user == null) throw Exception("Impossible de créer le compte");
 
-      if (user != null) {
-        final userId = user.id;
-        final supabase = Supabase.instance.client;
+      // 🔥 Token FCM
+      final fcmToken = await FirebaseMessaging.instance.getToken();
 
-        await supabase.from('users').insert({
-          'id': userId,
-          'username': _usernameController.text.trim(),
-          'profile_picture': "https://via.placeholder.com/150",
-          'is_active': false,
-          'role': 'user',
+      // 💾 Insérer l'utilisateur dans la table 'users'
+      await supabase.from('users').insert({
+        'id': user.id,
+        'username': _usernameController.text.trim(),
+        'profile_picture': "https://via.placeholder.com/150",
+        'is_active': false,
+        'role': 'user',
+        'fcm_token': fcmToken,
+      });
+
+      // 👀 Notification admins
+      final admins =
+      await supabase.from('users').select('id, fcm_token').eq('role', 'admin');
+
+      for (final admin in admins) {
+        await supabase.from('notifications').insert({
+          'user_id': admin['id'],
+          'title': '🆕 New Account Request',
+          'message':
+          '${_usernameController.text.trim()} just signed up. Please review and activate the account.',
         });
 
-        final admins = await supabase
-            .from('users')
-            .select('id')
-            .eq('role', 'admin');
-
-        for (final admin in admins) {
-          await supabase.from('notifications').insert({
-            'user_id': admin['id'],
+        if (admin['fcm_token'] != null) {
+          await supabase.functions.invoke('sendPushNotification', body: {
+            'token': admin['fcm_token'],
             'title': '🆕 New Account Request',
-            'message': '${_usernameController.text.trim()} just signed up. Please review and activate the account.',
+            'body':
+            '${_usernameController.text.trim()} has just created an account!',
           });
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Your account has been created. Please wait for admin approval.'),
-            backgroundColor: Colors.orange.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-
-        Navigator.pop(context);
       }
+
+      _showMessage('✅ Account created! Wait for admin approval.');
+
+      Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error signing up: $e'),
-          backgroundColor: Colors.red.shade600,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showMessage('❌ Error occurred.', isError: true);
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +116,7 @@ class _SignupPageState extends State<SignupPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    // Logo Section
+                    // 🔹 Logo Section
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -135,7 +142,7 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Title
+                    // 🔹 Title
                     Text(
                       'Create Account',
                       textAlign: TextAlign.center,
@@ -158,58 +165,73 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                     const SizedBox(height: 40),
 
-                    // Username Field
+                    // 🔹 Username
                     TextFormField(
                       controller: _usernameController,
-                      decoration: _inputDecoration('Username', 'Choose a username', Icons.person_outline),
+                      decoration: _inputDecoration(
+                        'Username',
+                        'Choose a username',
+                        Icons.person_outline,
+                      ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Username is required';
-                        if (value.length < 3) return 'Username must be at least 3 characters';
+                        if (value == null || value.isEmpty)
+                          return 'Username is required';
+                        if (value.length < 3)
+                          return 'At least 3 characters required';
                         return null;
                       },
                     ),
                     const SizedBox(height: 20),
 
-                    // Email Field
+                    // 🔹 Email
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: _inputDecoration('Email', 'Enter your email', Icons.email_outlined),
+                      decoration: _inputDecoration(
+                        'Email',
+                        'Enter your email',
+                        Icons.email_outlined,
+                      ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Email is required';
-                        if (!value.contains('@')) return 'Enter a valid email';
+                        if (value == null || value.isEmpty)
+                          return 'Email is required';
+                        if (!value.contains('@')) return 'Invalid email';
                         return null;
                       },
                     ),
                     const SizedBox(height: 20),
 
-                    // Password Field
+                    // 🔹 Password
                     TextFormField(
                       controller: _passwordController,
-                      decoration: _inputDecoration('Password', 'Create a password', Icons.lock_outline)
-                          .copyWith(
+                      obscureText: _obscurePassword,
+                      decoration: _inputDecoration(
+                        'Password',
+                        'Create a password',
+                        Icons.lock_outline,
+                      ).copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                             color: Colors.grey.shade600,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
+                          onPressed: () =>
+                              setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
-                      obscureText: _obscurePassword,
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Password is required';
-                        if (value.length < 6) return 'Password must be at least 6 characters';
+                        if (value == null || value.isEmpty)
+                          return 'Password required';
+                        if (value.length < 6)
+                          return 'Minimum 6 characters';
                         return null;
                       },
                     ),
                     const SizedBox(height: 40),
 
-                    // Sign Up Button
+                    // 🔹 Sign Up Button
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
@@ -250,17 +272,18 @@ class _SignupPageState extends State<SignupPage> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 24),
 
-                    // Terms and Conditions
+                    // 🔹 Terms
                     TextButton(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: const Text('Terms & Conditions feature coming soon!'),
+                            content:
+                            const Text('Terms & Conditions coming soon!'),
                             behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         );
                       },
@@ -274,7 +297,6 @@ class _SignupPageState extends State<SignupPage> {
                         ),
                       ),
                     ),
-
                     const Spacer(),
                   ],
                 ),
@@ -305,7 +327,8 @@ class _SignupPageState extends State<SignupPage> {
       ),
       filled: true,
       fillColor: Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      contentPadding:
+      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       labelStyle: TextStyle(color: Colors.grey.shade600),
       hintStyle: TextStyle(color: Colors.grey.shade500),
     );

@@ -1,183 +1,115 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'firebase_options.dart';
+import 'services/notification_service.dart';
 import 'welcome_page.dart';
-import 'home_page.dart';
+import 'dashboard_page.dart';
 import 'profile_page.dart';
 import 'login_page.dart';
 import 'signup_page.dart';
 import 'user.dart' as local;
-import 'post.dart';
-import 'dashboard_page.dart';
 import 'splash_screen.dart';
+
+/// 🔔 Handler pour les notifications reçues en arrière-plan
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("📩 [Background] Notification: ${message.notification?.title}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  await Supabase.initialize(
-    url: 'https://lupyveilvgzkolbeimlg.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
-  );
-
-  // Recover session with stored refresh token
-  final prefs = await SharedPreferences.getInstance();
-  final refreshToken = prefs.getString('refreshToken');
-  if (refreshToken != null) {
-    try {
-      await Supabase.instance.client.auth.recoverSession(refreshToken);
-    } catch (e) {
-      print('Failed to recover session: $e');
-    }
-  }
-
-  Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-    final event = data.event;
-    final session = data.session;
-
-    if (event == AuthChangeEvent.signedIn && session != null) {
-      final user = session.user;
-      if (user == null) return;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', true);
-
-      final existing = await Supabase.instance.client
-          .from('users')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (existing == null) {
-        await Supabase.instance.client.from('users').insert({
-          'id': user.id,
-          'username': user.email?.split('@')[0] ?? 'Anonymous',
-          'profile_picture': '',
-        });
-        print('✅ Nouvel utilisateur ajouté : ${user.email}');
-      } else {
-        print('👤 Utilisateur existant : ${user.email}');
-      }
-    } else if (event == AuthChangeEvent.signedOut) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', false);
-    }
-  });
-
-  runApp(MyApp());
+  runApp(const BrightFutureApp());
 }
 
-class MyApp extends StatelessWidget {
-  final SupabaseClient _supabase = Supabase.instance.client;
+class BrightFutureApp extends StatefulWidget {
+  const BrightFutureApp({Key? key}) : super(key: key);
 
-  Future<String?> _checkAuthStatus() async {
+  @override
+  State<BrightFutureApp> createState() => _BrightFutureAppState();
+}
+
+class _BrightFutureAppState extends State<BrightFutureApp> {
+  bool _isInitialized = false;
+  local.User? _currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // 🟢 Init Firebase (pour les notifications)
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+    // 🟣 Init Supabase
+    await Supabase.initialize(
+      url: 'https://lupyveilvgzkolbeimlg.supabase.co',
+      anonKey:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
+    );
+
+    // 🔔 Init des notifications locales
+    await NotificationService.initialize();
+
+    // 🔁 Restauration de session (si token enregistré)
     final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = _supabase.auth.currentUser != null || (prefs.getBool('isLoggedIn') ?? false);
-    print('Auth status check: isLoggedIn = $isLoggedIn, currentUser = ${_supabase.auth.currentUser}, prefs = ${prefs.getBool('isLoggedIn')}');
-    return isLoggedIn ? '/dashboard' : '/welcome'; // Changed to '/welcome' for unauthenticated
+    final refreshToken = prefs.getString('refreshToken');
+
+    if (refreshToken != null) {
+      try {
+        await Supabase.instance.client.auth.recoverSession(refreshToken);
+        print('🔁 Session restaurée.');
+      } catch (e) {
+        print('⚠️ Erreur de restauration de session : $e');
+      }
+    }
+
+    // 👤 Vérification de l’utilisateur connecté
+    final user = Supabase.instance.client.auth.currentUser;
+
+    // 💡 Si un utilisateur est connecté → création du modèle local
+    if (user != null) {
+      _currentUser = local.User(
+        id: user.id,
+        username: user.email?.split('@')[0] ?? 'User',
+        pseudo: user.email ?? 'user@bff.com',
+        imageUrl: "https://via.placeholder.com/150",
+      );
+
+      // 🔔 Écoute en temps réel des nouveaux posts (sauf ceux de l’utilisateur actuel)
+      NotificationService.listenToSupabaseRealtime(user.id);
+    }
+
+    // ✅ Fin d’initialisation
+    setState(() => _isInitialized = true);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Bright Future App', // Updated app name
+      title: 'Bright Future App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(color: Colors.black),
-        ),
-      ),
-      initialRoute: '/splash',
+      theme: ThemeData(useMaterial3: true),
+      home: !_isInitialized
+          ? const SplashScreen(nextScreen: null)
+          : (_currentUser != null
+          ? DashboardPage(currentUser: _currentUser!)
+          : const WelcomePage()),
       routes: {
-        '/splash': (context) {
-          precacheImage(const AssetImage('assets/images/bright_future_foundation.jpg'), context);
-          return SplashScreen(
-            nextScreen: FutureBuilder<String?>(
-              future: _checkAuthStatus(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
-                }
-                final route = snapshot.data;
-                if (route == '/dashboard') {
-                  final user = _supabase.auth.currentUser;
-                  if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
-                  final currentUser = local.User(
-                    id: user.id,
-                    username: user.email?.split('@')[0] ?? 'User',
-                    pseudo: user.email ?? 'user@bff.com',
-                    imageUrl: "https://via.placeholder.com/150",
-                  );
-                  return DashboardPage(currentUser: currentUser);
-                }
-                return WelcomePage(); // Default to WelcomePage for unauthenticated
-              },
-            ),
-          );
-        },
-        '/': (context) => FutureBuilder<String?>(
-          future: _checkAuthStatus(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            }
-            final route = snapshot.data;
-            if (route == '/dashboard') {
-              final user = _supabase.auth.currentUser;
-              if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
-              final currentUser = local.User(
-                id: user.id,
-                username: user.email?.split('@')[0] ?? 'User',
-                pseudo: user.email ?? 'user@bff.com',
-                imageUrl: "https://via.placeholder.com/150",
-              );
-              return DashboardPage(currentUser: currentUser);
-            }
-            return WelcomePage(); // Default to WelcomePage for unauthenticated
-          },
-        ),
-        '/welcome': (context) => WelcomePage(),
+        '/welcome': (context) => const WelcomePage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
-        '/dashboard': (context) {
-          final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
-          final currentUser = local.User(
-            id: user.id,
-            username: user.email?.split('@')[0] ?? 'User',
-            pseudo: user.email ?? 'user@bff.com',
-            imageUrl: "https://via.placeholder.com/150",
-          );
-          return DashboardPage(currentUser: currentUser);
-        },
-        '/profile': (context) {
-          final user = _supabase.auth.currentUser;
-          if (user == null) return WelcomePage(); // Fallback to WelcomePage if user is null
-          final currentUser = local.User(
-            id: user.id,
-            username: user.email?.split('@')[0] ?? 'User',
-            pseudo: user.email ?? 'user@bff.com',
-            imageUrl: "https://via.placeholder.com/150",
-          );
-          return ProfilePage(currentUser: currentUser);
-        },
+        '/dashboard': (context) => _currentUser != null
+            ? DashboardPage(currentUser: _currentUser!)
+            : const WelcomePage(),
+        '/profile': (context) => _currentUser != null
+            ? ProfilePage(currentUser: _currentUser!)
+            : const WelcomePage(),
       },
     );
   }

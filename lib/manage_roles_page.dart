@@ -22,25 +22,31 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
   }
 
   Future<void> _loadUsers() async {
+    setState(() => _isLoading = true);
+
     try {
       final response = await widget.supabase
           .from('users')
           .select('id, username, role, is_active')
           .order('username', ascending: true);
+
       setState(() {
         _users = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading users: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      print('Error loading users: $e'); // Pour debug uniquement
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors du chargement des utilisateurs: $e')),
+        const SnackBar(
+          content: Text('⚠️ Impossible de charger les utilisateurs. Vérifie ta connexion.'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
+
+
 
   Future<void> _toggleActivation(String userId, bool isActive) async {
     try {
@@ -48,22 +54,31 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
           .from('users')
           .update({'is_active': isActive})
           .eq('id', userId);
+
       setState(() {
         final userIndex = _users.indexWhere((user) => user['id'] == userId);
         if (userIndex != -1) {
           _users[userIndex]['is_active'] = isActive;
         }
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isActive ? 'Utilisateur activé' : 'Utilisateur désactivé')),
+        SnackBar(
+          content: Text(isActive ? '✅ Utilisateur activé' : '❌ Utilisateur désactivé'),
+          backgroundColor: isActive ? Colors.green : Colors.redAccent,
+        ),
       );
     } catch (e) {
-      print('Error toggling activation: $e');
+      print('Error toggling activation: $e'); // Log pour debug seulement
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la mise à jour de l\'activation: $e')),
+        const SnackBar(
+          content: Text('⚠️ Impossible de mettre à jour l’activation. Réessaie.'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
+
 
   Future<void> _updateRole(String userId, String newRole) async {
     try {
@@ -71,22 +86,31 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
           .from('users')
           .update({'role': newRole})
           .eq('id', userId);
+
       setState(() {
         final userIndex = _users.indexWhere((user) => user['id'] == userId);
         if (userIndex != -1) {
           _users[userIndex]['role'] = newRole;
         }
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rôle mis à jour avec succès !')),
+        const SnackBar(
+          content: Text('✅ Rôle mis à jour avec succès !'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
-      print('Error updating role: $e');
+      print('Error updating role: $e'); // Log complet pour debug
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur lors de la mise à jour du rôle: $e')),
+        const SnackBar(
+          content: Text('❌ Impossible de mettre à jour le rôle. Réessaie.'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
