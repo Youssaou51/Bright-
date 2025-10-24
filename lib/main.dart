@@ -69,7 +69,7 @@ class _BrightFutureAppState extends State<BrightFutureApp> {
       }
     }
 
-    // 👤 Vérification de l’utilisateur connecté
+    // 👤 Vérification de l'utilisateur connecté
     final user = Supabase.instance.client.auth.currentUser;
 
     // 💡 Si un utilisateur est connecté → création du modèle local
@@ -81,11 +81,11 @@ class _BrightFutureAppState extends State<BrightFutureApp> {
         imageUrl: "https://via.placeholder.com/150",
       );
 
-      // 🔔 Écoute en temps réel des nouveaux posts (sauf ceux de l’utilisateur actuel)
-      NotificationService.listenToSupabaseRealtime(user.id);
+      // 🔔 Écoute en temps réel des nouveaux posts (sauf ceux de l'utilisateur actuel)
+      NotificationService.setupRealtimeListeners(user.id); // ✅ Correct method name
     }
 
-    // ✅ Fin d’initialisation
+    // ✅ Fin d'initialisation
     setState(() => _isInitialized = true);
   }
 
