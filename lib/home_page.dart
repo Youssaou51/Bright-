@@ -12,7 +12,6 @@ import 'user.dart' as AppUser;
 import 'utils/error_handler.dart';
 import 'utils/network_helper.dart';
 
-
 class HomePage extends StatefulWidget {
   final List<Post> posts;
   final AppUser.User currentUser;
@@ -40,6 +39,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   late AnimationController _animationController;
   final ScrollController _scrollController = ScrollController();
 
+  // Ajoutez un écouteur en temps réel
+  late RealtimeChannel _postsChannel;
+
   @override
   void initState() {
     super.initState();
@@ -50,9 +52,38 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       duration: const Duration(milliseconds: 300),
     );
     timeago.setLocaleMessages('fr', timeago.FrMessages());
+
+    // Initialisez l'écouteur en temps réel
+    _setupRealtimeListener();
+
     _checkIfAdmin();
     _fetchPosts();
     _loadInitialLikes();
+  }
+
+  // Configurez l'écouteur en temps réel pour les nouveaux posts
+  void _setupRealtimeListener() {
+    _postsChannel = _supabase.channel('homepage_posts');
+
+    _postsChannel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'posts',
+      callback: (payload) {
+        print('🆕 Nouveau post détecté en temps réel: ${payload.newRecord}');
+
+        // Rafraîchir automatiquement les posts
+        _fetchPosts();
+      },
+    ).onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: 'posts',
+      callback: (payload) {
+        print('🗑️ Post supprimé détecté en temps réel: ${payload.oldRecord}');
+        _fetchPosts();
+      },
+    ).subscribe();
   }
 
   Future<void> _checkIfAdmin() async {
@@ -122,7 +153,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
   }
 
-
   Future<void> _loadInitialLikes() async {
     final response = await runNetworkCall(
       context: context,
@@ -141,7 +171,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       });
     }
   }
-
 
   Future<void> _toggleLike(Post post) async {
     final userId = widget.currentUser.id;
@@ -257,7 +286,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       );
     }
   }
-
 
   void _showDeleteDialog(Post post) {
     showDialog(
@@ -606,11 +634,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   void dispose() {
+    // N'oubliez pas de supprimer l'écouteur quand le widget est détruit
+    _postsChannel.unsubscribe();
     _animationController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 }
+
+// Le reste du code (MediaViewer, ChewieVideoWidget) reste inchangé...
 
 class MediaViewer extends StatefulWidget {
   final List<String> media;

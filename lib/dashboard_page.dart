@@ -433,14 +433,22 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         },
       );
 
+      // Forcez l'actualisation des posts
       await _loadPosts();
+
+      // Montrez un message de succès
       ErrorHandler.showSuccess(context, "Post publié avec succès !");
+
+      // Naviguez vers la page d'accueil pour voir le nouveau post
+      _pageController.jumpToPage(0);
+      setState(() {
+        _selectedIndex = 0;
+      });
+
     } catch (error) {
       ErrorHandler.handleException(context, error);
     }
   }
-
-
 
   void _showUpdateFundsDialog() {
     final _controller = TextEditingController();
