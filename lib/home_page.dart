@@ -17,6 +17,7 @@ class HomePage extends StatefulWidget {
   final AppUser.User currentUser;
   final Future<void> Function() refreshPosts;
   final Set<String> likedPostIds;
+  final Function(Post, int)? onPostUpdated;
 
   const HomePage({
     Key? key,
@@ -24,6 +25,7 @@ class HomePage extends StatefulWidget {
     required this.currentUser,
     required this.likedPostIds,
     required this.refreshPosts,
+    this.onPostUpdated,
   }) : super(key: key);
 
   @override
@@ -229,18 +231,29 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   void _showCommentsPage(Post post) async {
-    final updatedCommentCount = await Navigator.push(
+    // ✅ Utiliser le callback pour recevoir les updates
+    await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
+        builder: (context) => CommentsPage(
+          post: post,
+          currentUser: widget.currentUser,
+          onCommentCountUpdated: (newCount) {
+            // ✅ Mettre à jour le post localement
+            setState(() {
+              post.commentCount = newCount;
+            });
+
+            // ✅ Notifier DashboardPage du changement
+            widget.onPostUpdated?.call(post, newCount);
+          },
+        ),
         fullscreenDialog: true,
       ),
     );
-    if (updatedCommentCount != null && updatedCommentCount != post.commentCount) {
-      setState(() {
-        post.commentCount = updatedCommentCount;
-      });
-    }
+
+    // ✅ Recharger les données pour être sûr
+    await _fetchPosts();
   }
 
   void _showMediaViewer(BuildContext context, List<String> media, int initialIndex, bool isVideo) {

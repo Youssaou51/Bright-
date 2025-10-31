@@ -634,6 +634,15 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     });
   }
 
+  void _updatePost(Post updatedPost, int newCommentCount) {
+    setState(() {
+      final index = _posts.indexWhere((p) => p.id == updatedPost.id);
+      if (index != -1) {
+        _posts[index].commentCount = newCommentCount;
+      }
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -700,6 +709,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     currentUser: widget.currentUser,
                     likedPostIds: _likedPostIds,
                     refreshPosts: _loadPosts,
+                    onPostUpdated: _updatePost,
                   ),
                   ReportsPage(),
                   Container(), // Placeholder for Media page

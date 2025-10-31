@@ -10,11 +10,13 @@ import 'utils/error_handler.dart';
 class CommentsPage extends StatefulWidget {
   final Post post;
   final AppUser.User currentUser;
+  final Function(int)? onCommentCountUpdated;
 
   const CommentsPage({
     Key? key,
     required this.post,
     required this.currentUser,
+    this.onCommentCountUpdated,
   }) : super(key: key);
 
   @override
