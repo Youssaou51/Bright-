@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'welcome_page.dart';
@@ -43,20 +42,14 @@ class _BrightFutureAppState extends State<BrightFutureApp> {
   }
 
   Future<void> _initializeApp() async {
-    // 🟢 Init Firebase (pour les notifications)
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-    // 🟣 Init Supabase
-    await Supabase.initialize(
-      url: 'https://lupyveilvgzkolbeimlg.supabase.co',
-      anonKey:
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
+    // 🟢 Init Firebase
+    await Supabase.initialize( url: 'https://lupyveilvgzkolbeimlg.supabase.co', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cHl2ZWlsdmd6a29sYmVpbWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MjQ3OTc2MiwiZXhwIjoyMDU4MDU1NzYyfQ.v581oYh0hMCO7daGEZW_pcAgq32vpT3vQ5U445A0nek',
     );
 
     // 🔔 Init des notifications locales
     await NotificationService.initialize();
 
-    // 🔁 Restauration de session (si token enregistré)
+    // 🔁 Restauration de session
     final prefs = await SharedPreferences.getInstance();
     final refreshToken = prefs.getString('refreshToken');
 
@@ -69,10 +62,9 @@ class _BrightFutureAppState extends State<BrightFutureApp> {
       }
     }
 
-    // 👤 Vérification de l'utilisateur connecté
+    // 👤 Vérification de l’utilisateur connecté
     final user = Supabase.instance.client.auth.currentUser;
 
-    // 💡 Si un utilisateur est connecté → création du modèle local
     if (user != null) {
       _currentUser = local.User(
         id: user.id,
@@ -81,11 +73,26 @@ class _BrightFutureAppState extends State<BrightFutureApp> {
         imageUrl: "https://via.placeholder.com/150",
       );
 
-      // 🔔 Écoute en temps réel des nouveaux posts (sauf ceux de l'utilisateur actuel)
-      NotificationService.setupRealtimeListeners(user.id); // ✅ Correct method name
+      NotificationService.setupRealtimeListeners(user.id);
     }
 
-    // ✅ Fin d'initialisation
+    // 🔄 Écouter les changements d’état d’auth (email confirmation / login)
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      final event = data.event;
+
+      print('🔔 Auth Event: $event');
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        // Email confirmé → rediriger vers LoginPage
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login',
+              (route) => false,
+        );
+      }
+    });
+
     setState(() => _isInitialized = true);
   }
 
