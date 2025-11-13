@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '607159590701',
     projectId: 'bright-future-foundation-5d630',
     storageBucket: 'bright-future-foundation-5d630.firebasestorage.app',
-    iosBundleId: 'com.example.bright',
+    iosBundleId: 'com.boboy.bright',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '607159590701',
     projectId: 'bright-future-foundation-5d630',
     storageBucket: 'bright-future-foundation-5d630.firebasestorage.app',
-    iosBundleId: 'com.example.bright',
+    iosBundleId: 'com.boboy.bright',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dashboard_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+
 
 class SignupPage extends StatefulWidget {
   @override
@@ -39,15 +41,21 @@ class _SignupPageState extends State<SignupPage> {
       final response = await supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        emailRedirectTo: 'io.supabase.bright://login-callback',
       );
 
       final user = response.user;
-      if (user == null) throw Exception("Impossible de créer le compte");
+      if (user == null) {
+        _showMessage('❌ Impossible de créer le compte.', isError: true);
+        return;
+      }
+      // ✅ S’assurer que Firebase est bien initialisé avant d’utiliser FirebaseMessaging
+      await Firebase.initializeApp();
 
       // 🔥 Token FCM
       final fcmToken = await FirebaseMessaging.instance.getToken();
 
-      // 💾 Insérer l'utilisateur dans la table 'users'
+      // 💾 Insérer l’utilisateur dans la table 'users'
       await supabase.from('users').insert({
         'id': user.id,
         'username': _usernameController.text.trim(),
@@ -57,33 +65,13 @@ class _SignupPageState extends State<SignupPage> {
         'fcm_token': fcmToken,
       });
 
-      // 👀 Notification admins
-      final admins =
-      await supabase.from('users').select('id, fcm_token').eq('role', 'admin');
+      _showMessage('✅ Account created! Check your email to confirm.');
 
-      for (final admin in admins) {
-        await supabase.from('notifications').insert({
-          'user_id': admin['id'],
-          'title': '🆕 New Account Request',
-          'message':
-          '${_usernameController.text.trim()} just signed up. Please review and activate the account.',
-        });
-
-        if (admin['fcm_token'] != null) {
-          await supabase.functions.invoke('sendPushNotification', body: {
-            'token': admin['fcm_token'],
-            'title': '🆕 New Account Request',
-            'body':
-            '${_usernameController.text.trim()} has just created an account!',
-          });
-        }
-      }
-
-      _showMessage('✅ Account created! Wait for admin approval.');
-
-      Navigator.pop(context);
+      // Tu peux maintenant rester sur la page Signup ou rediriger vers Login
+      Navigator.pushReplacementNamed(context, '/login');
     } catch (e) {
-      _showMessage('❌ Error occurred.', isError: true);
+      // 🔴 Ici on capture l'erreur réelle de Supabase
+      _showMessage('❌ Error: ${e.toString()}', isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
