@@ -37,27 +37,48 @@ class _SignupPageState extends State<SignupPage> {
     }
 
     try {
-      // 🔐 Créer un nouvel utilisateur Supabase
+      final email = _emailController.text.trim();
+
+      // 🔍 ÉTAPE 1 : Vérifier si l'email existe déjà dans la table users
+      final existing = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (existing != null) {
+        _showMessage(
+          "⚠️ Cet email est déjà utilisé. Veuillez vous connecter.",
+          isError: true,
+        );
+        return;
+      }
+
+      // 🔥 ÉTAPE 2 : Créer le compte Supabase Auth
       final response = await supabase.auth.signUp(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text.trim(),
         emailRedirectTo: 'io.supabase.bright://login-callback',
       );
 
-      final user = response.user;
-      if (user == null) {
-        _showMessage('❌ Impossible de créer le compte.', isError: true);
+      if (response.user == null) {
+        _showMessage(
+          "❌ Impossible de créer le compte. Réessayez.",
+          isError: true,
+        );
         return;
       }
-      // ✅ S’assurer que Firebase est bien initialisé avant d’utiliser FirebaseMessaging
+
+      // 🔥 Firebase init
       await Firebase.initializeApp();
 
       // 🔥 Token FCM
       final fcmToken = await FirebaseMessaging.instance.getToken();
 
-      // 💾 Insérer l’utilisateur dans la table 'users'
+      // 💾 ÉTAPE 3 : Ajouter user dans la BD
       await supabase.from('users').insert({
-        'id': user.id,
+        'id': response.user!.id,
+        'email': email,
         'username': _usernameController.text.trim(),
         'profile_picture': "https://via.placeholder.com/150",
         'is_active': false,
@@ -65,17 +86,26 @@ class _SignupPageState extends State<SignupPage> {
         'fcm_token': fcmToken,
       });
 
-      _showMessage('✅ Account created! Check your email to confirm.');
+      _showMessage('🎉 Compte créé ! Vérifiez votre email pour confirmer.');
 
-      // Tu peux maintenant rester sur la page Signup ou rediriger vers Login
       Navigator.pushReplacementNamed(context, '/login');
+    } on AuthException catch (e) {
+      if (e.message.contains("registered")) {
+        _showMessage(
+          "⚠️ Ce compte existe déjà. Veuillez vous connecter.",
+          isError: true,
+        );
+      } else {
+        _showMessage("❌ Erreur: ${e.message}", isError: true);
+      }
     } catch (e) {
-      // 🔴 Ici on capture l'erreur réelle de Supabase
-      _showMessage('❌ Error: ${e.toString()}', isError: true);
+      _showMessage("❌ Erreur inattendue: $e", isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
+
+
 
 
   @override

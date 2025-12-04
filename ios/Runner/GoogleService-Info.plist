@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.bright</string>
+	<string>com.boboy.bright</string>
 	<key>PROJECT_ID</key>
 	<string>bright-future-foundation-5d630</string>
 	<key>STORAGE_BUCKET</key>

@@ -6,8 +6,8 @@ plugins {
 }
 
 android {
-    namespace = "com.example.bright"
-    compileSdk = 35
+    namespace = "com.boboy.bright"
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -21,9 +21,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.bright"
-        minSdk = 23 // ⚠ flutter_local_notifications nécessite minSdk >= 21
-        targetSdk = 35
+        applicationId = "com.boboy.bright"
+        minSdk = flutter.minSdkVersion // ⚠ flutter_local_notifications nécessite minSdk >= 21
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
     }
