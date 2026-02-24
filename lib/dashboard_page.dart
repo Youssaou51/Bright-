@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
 import 'reports_page.dart';
@@ -25,7 +26,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   int _selectedIndex = 0;
   late PageController _pageController;
   final ImagePicker _picker = ImagePicker();
@@ -34,6 +35,10 @@ class _DashboardPageState extends State<DashboardPage>
   Set<String> _likedPostIds = {};
   double _currentAmount = 0.0;
   bool _isAdmin = false;
+
+  // Keep state alive
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -48,6 +53,43 @@ class _DashboardPageState extends State<DashboardPage>
     _checkUserRole();
     _loadPosts();
     _loadInitialAmount();
+    _checkPendingPhoto(); // Check for pending photo from camera
+  }
+
+  // Check if there's a pending photo from camera
+  Future<void> _checkPendingPhoto() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final pendingPhotoPath = prefs.getString('pending_photo_path');
+      final pendingPhotoType = prefs.getString('pending_photo_type');
+
+      if (pendingPhotoPath != null && pendingPhotoType != null) {
+        print('📸 Photo en attente trouvée: $pendingPhotoPath');
+
+        // Clear the pending photo
+        await prefs.remove('pending_photo_path');
+        await prefs.remove('pending_photo_type');
+
+        // Check if file still exists
+        final file = File(pendingPhotoPath);
+        if (await file.exists()) {
+          // Wait a bit for the UI to be ready
+          await Future.delayed(Duration(milliseconds: 800));
+
+          if (mounted) {
+            if (pendingPhotoType == 'image') {
+              _promptForCaption([file], [], 'Nouveau post photo');
+            } else if (pendingPhotoType == 'video') {
+              _promptForCaption([], [file], 'Nouveau post vidéo');
+            }
+          }
+        } else {
+          print('❌ Fichier en attente introuvable');
+        }
+      }
+    } catch (e) {
+      print('❌ Erreur vérification photo en attente: $e');
+    }
   }
 
   Future<void> _checkUserRole() async {
@@ -268,24 +310,59 @@ class _DashboardPageState extends State<DashboardPage>
                   ),
                   onTap: () async {
                     Navigator.pop(context);
+
+                    print('📸 Tentative de prise de photo...');
+
                     try {
                       final file = await _picker.pickImage(
                         source: ImageSource.camera,
+                        imageQuality: 85,
+                        maxWidth: 1920,
+                        maxHeight: 1920,
                       );
-                      if (file != null && mounted) {
-                        _promptForCaption(
-                          [File(file.path)],
-                          [],
-                          'Nouveau post photo',
+
+                      print('📸 Résultat picker: ${file?.path}');
+
+                      if (file != null) {
+                        // Save the photo path in case app is killed
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('pending_photo_path', file.path);
+                        await prefs.setString('pending_photo_type', 'image');
+                        print('💾 Photo sauvegardée temporairement');
+
+                        // Wait a bit for the widget to be ready after camera closes
+                        await Future.delayed(Duration(milliseconds: 500));
+
+                        print(
+                          '📸 Fichier trouvé, vérification mounted: $mounted',
                         );
+                        if (mounted) {
+                          // Clear the pending photo since we're showing the dialog
+                          await prefs.remove('pending_photo_path');
+                          await prefs.remove('pending_photo_type');
+
+                          print('📸 Appel _promptForCaption');
+                          _promptForCaption(
+                            [File(file.path)],
+                            [],
+                            'Nouveau post photo',
+                          );
+                        } else {
+                          print(
+                            '❌ Widget non monté - photo sera récupérée au redémarrage',
+                          );
+                        }
+                      } else {
+                        print('❌ Aucun fichier sélectionné');
                       }
                     } catch (e) {
-                      print('Error picking image: $e');
+                      print('❌ Erreur picking image: $e');
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Erreur lors de la prise de photo'),
+                            content: Text('Erreur: ${e.toString()}'),
                             backgroundColor: Colors.red,
+                            duration: Duration(seconds: 5),
                           ),
                         );
                       }
@@ -297,26 +374,42 @@ class _DashboardPageState extends State<DashboardPage>
                   title: Text('Galerie photo', style: GoogleFonts.poppins()),
                   onTap: () async {
                     Navigator.pop(context);
+
+                    print('🖼️ Tentative de sélection galerie...');
+
                     try {
                       final file = await _picker.pickImage(
                         source: ImageSource.gallery,
+                        imageQuality: 85,
                       );
-                      if (file != null && mounted) {
-                        _promptForCaption(
-                          [File(file.path)],
-                          [],
-                          'Nouveau post photo',
+
+                      print('🖼️ Résultat picker: ${file?.path}');
+
+                      if (file != null) {
+                        print(
+                          '🖼️ Fichier trouvé, vérification mounted: $mounted',
                         );
+                        if (mounted) {
+                          print('🖼️ Appel _promptForCaption');
+                          _promptForCaption(
+                            [File(file.path)],
+                            [],
+                            'Nouveau post photo',
+                          );
+                        } else {
+                          print('❌ Widget non monté');
+                        }
+                      } else {
+                        print('❌ Aucun fichier sélectionné');
                       }
                     } catch (e) {
-                      print('Error picking image: $e');
+                      print('❌ Erreur picking image: $e');
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(
-                              'Erreur lors de la sélection de photo',
-                            ),
+                            content: Text('Erreur: ${e.toString()}'),
                             backgroundColor: Colors.red,
+                            duration: Duration(seconds: 5),
                           ),
                         );
                       }
@@ -781,6 +874,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
