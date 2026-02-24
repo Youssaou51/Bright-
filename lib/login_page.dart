@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dashboard_page.dart';
 import 'user.dart' as local;
+import 'utils/responsive.dart';
 
 class LoginPage extends StatefulWidget {
   @override
@@ -43,9 +44,12 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+          backgroundColor:
+              isError ? Colors.red.shade600 : Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -62,17 +66,21 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final userData = await Supabase.instance.client
-          .from('users')
-          .select('is_active, username, profile_picture')
-          .eq('id', user.id)
-          .maybeSingle();
+      final userData =
+          await Supabase.instance.client
+              .from('users')
+              .select('is_active, username, profile_picture')
+              .eq('id', user.id)
+              .maybeSingle();
 
       final isActive = userData?['is_active'] ?? false;
 
       if (!isActive) {
         await Supabase.instance.client.auth.signOut();
-        _showMessage("Compte non activé. Attendez l'approbation de l'admin.", isError: true);
+        _showMessage(
+          "Compte non activé. Attendez l'approbation de l'admin.",
+          isError: true,
+        );
         return;
       }
 
@@ -94,26 +102,31 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => DashboardPage(
-            currentUser: local.User(
-              id: user.id,
-              username: userData?['username'] ?? user.email ?? 'User',
-              pseudo: userData?['username'] ?? user.email ?? 'User',
-              imageUrl: userData?['profile_picture'] ?? "https://via.placeholder.com/150",
-            ),
-          ),
+          builder:
+              (context) => DashboardPage(
+                currentUser: local.User(
+                  id: user.id,
+                  username: userData?['username'] ?? user.email ?? 'User',
+                  pseudo: userData?['username'] ?? user.email ?? 'User',
+                  imageUrl:
+                      userData?['profile_picture'] ??
+                      "https://via.placeholder.com/150",
+                ),
+              ),
         ),
       );
     } on AuthException catch (e) {
       final isInvalid = e.message.toLowerCase().contains('invalid login');
-      _showMessage(isInvalid ? 'Email ou mot de passe invalide.' : 'Erreur Auth', isError: true);
+      _showMessage(
+        isInvalid ? 'Email ou mot de passe invalide.' : 'Erreur Auth',
+        isError: true,
+      );
     } catch (e) {
       _showMessage('Erreur inattendue.', isError: true);
     } finally {
       setState(() => _isLoading = false);
     }
   }
-
 
   void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +138,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -141,8 +153,9 @@ class _LoginPageState extends State<LoginPage> {
       ),
       body: SingleChildScrollView(
         child: ConstrainedBox(
-          constraints:
-          BoxConstraints(minHeight: MediaQuery.of(context).size.height - 100),
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height - 100,
+          ),
           child: IntrinsicHeight(
             child: Padding(
               padding: const EdgeInsets.all(32.0),
@@ -201,7 +214,10 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: _inputDecoration(
-                          'Email', 'Enter your email', Icons.email_outlined),
+                        'Email',
+                        'Enter your email',
+                        Icons.email_outlined,
+                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty)
                           return 'Email is required';
@@ -213,8 +229,10 @@ class _LoginPageState extends State<LoginPage> {
                     TextFormField(
                       controller: _passwordController,
                       decoration: _inputDecoration(
-                          'Password', 'Enter your password', Icons.lock_outline)
-                          .copyWith(
+                        'Password',
+                        'Enter your password',
+                        Icons.lock_outline,
+                      ).copyWith(
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
@@ -245,10 +263,12 @@ class _LoginPageState extends State<LoginPage> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text(
-                                  'Reset password feature coming soon!'),
+                                'Reset password feature coming soon!',
+                              ),
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           );
                         },
@@ -284,22 +304,23 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           elevation: 0,
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                            : const Text(
-                          'Login',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                       ),
                     ),
                     const Spacer(),
@@ -332,8 +353,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       filled: true,
       fillColor: Colors.grey.shade50,
-      contentPadding:
-      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       labelStyle: TextStyle(color: Colors.grey.shade600),
       hintStyle: TextStyle(color: Colors.grey.shade500),
     );

@@ -6,16 +6,14 @@ import 'comment.dart';
 import 'post.dart';
 import 'user.dart' as AppUser;
 import 'utils/error_handler.dart';
+import 'utils/responsive.dart';
 
 class CommentsPage extends StatefulWidget {
   final Post post;
   final AppUser.User currentUser;
 
-  const CommentsPage({
-    Key? key,
-    required this.post,
-    required this.currentUser,
-  }) : super(key: key);
+  const CommentsPage({Key? key, required this.post, required this.currentUser})
+    : super(key: key);
 
   @override
   _CommentsPageState createState() => _CommentsPageState();
@@ -63,9 +61,10 @@ class _CommentsPageState extends State<CommentsPage> {
           .timeout(const Duration(seconds: 5));
 
       setState(() {
-        _comments = (response as List<dynamic>)
-            .map((map) => Comment.fromMap(map as Map<String, dynamic>))
-            .toList();
+        _comments =
+            (response as List<dynamic>)
+                .map((map) => Comment.fromMap(map as Map<String, dynamic>))
+                .toList();
         _isLoading = false;
       });
 
@@ -73,7 +72,8 @@ class _CommentsPageState extends State<CommentsPage> {
     } catch (error) {
       setState(() {
         _isLoading = false;
-        _error = "Impossible de charger les commentaires. Vérifie ta connexion.";
+        _error =
+            "Impossible de charger les commentaires. Vérifie ta connexion.";
       });
       ErrorHandler.handleException(context, error);
     }
@@ -86,16 +86,24 @@ class _CommentsPageState extends State<CommentsPage> {
     try {
       final hasConnection = await ErrorHandler.checkInternetConnection();
       if (!hasConnection) {
-        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        ErrorHandler.showError(
+          context,
+          "Aucune connexion Internet. Réessaie plus tard.",
+        );
         return;
       }
 
       // 🔹 Insérer le commentaire et récupérer le résultat
-      final inserted = await _supabase.from('comments').insert({
-        'post_id': widget.post.id,
-        'user_id': widget.currentUser.id,
-        'content': content,
-      }).select().single();
+      final inserted =
+          await _supabase
+              .from('comments')
+              .insert({
+                'post_id': widget.post.id,
+                'user_id': widget.currentUser.id,
+                'content': content,
+              })
+              .select()
+              .single();
 
       final insertedId = inserted['id'];
 
@@ -128,12 +136,14 @@ class _CommentsPageState extends State<CommentsPage> {
     }
   }
 
-
   Future<void> _deleteComment(String commentId) async {
     try {
       final hasConnection = await ErrorHandler.checkInternetConnection();
       if (!hasConnection) {
-        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        ErrorHandler.showError(
+          context,
+          "Aucune connexion Internet. Réessaie plus tard.",
+        );
         return;
       }
 
@@ -150,7 +160,6 @@ class _CommentsPageState extends State<CommentsPage> {
     }
   }
 
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -163,172 +172,230 @@ class _CommentsPageState extends State<CommentsPage> {
     });
   }
 
-
-
   void _confirmDelete(Comment comment) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Supprimer ce commentaire ?', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-        content: Text('Cette action est irréversible.', style: GoogleFonts.poppins()),
-        actions: [
-          TextButton(
-            child: Text('Annuler', style: GoogleFonts.poppins(color: Color(0xFF1976D2))),
-            onPressed: () => Navigator.of(context).pop(),
+      builder:
+          (_) => AlertDialog(
+            title: Text(
+              'Supprimer ce commentaire ?',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            content: Text(
+              'Cette action est irréversible.',
+              style: GoogleFonts.poppins(),
+            ),
+            actions: [
+              TextButton(
+                child: Text(
+                  'Annuler',
+                  style: GoogleFonts.poppins(color: Color(0xFF1976D2)),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              TextButton(
+                child: Text(
+                  'Supprimer',
+                  style: GoogleFonts.poppins(color: Colors.red),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _deleteComment(comment.id as String);
+                },
+              ),
+            ],
           ),
-          TextButton(
-            child: Text('Supprimer', style: GoogleFonts.poppins(color: Colors.red)),
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteComment(comment.id as String);
-            },
-          ),
-        ],
-      ),
     );
   }
 
   bool _isValidUrl(String? url) {
     if (url == null || url.isEmpty) return false;
-    if (url.startsWith('file:///') || url.contains('via.placeholder.com')) return false;
+    if (url.startsWith('file:///') || url.contains('via.placeholder.com'))
+      return false;
     return Uri.tryParse(url)?.hasAuthority ?? false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: Container(
-                  width: 80, // Broad handle
-                  height: 6, // Slightly thicker handle
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
-                    borderRadius: BorderRadius.circular(10),
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.of(context).pop(widget.post.commentCount);
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: Container(
+                    width: 80, // Broad handle
+                    height: 6, // Slightly thicker handle
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ),
-            ),
-            Text(
-              'Commentaires',
-              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const Divider(),
-            Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-                  : _error != null
-                  ? Center(child: Text(_error!, style: GoogleFonts.poppins(color: Colors.red)))
-                  : _comments.isEmpty
-                  ? Center(
-                child: Text(
-                  'Aucun commentaire pour l\'instant',
-                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
+              Text(
+                'Commentaires',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
-              )
-                  : ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _comments.length,
-                itemBuilder: (context, index) {
-                  final comment = _comments[index];
-                  final isOwner = comment.userId == widget.currentUser.id;
-
-                  return GestureDetector(
-                    onTap: isOwner ? () => _confirmDelete(comment) : null,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: Colors.grey.shade200,
-                            backgroundImage: _isValidUrl(comment.profilePicture)
-                                ? NetworkImage(comment.profilePicture!)
-                                : null,
-                            child: !_isValidUrl(comment.profilePicture)
-                                ? const Icon(Icons.person, color: Colors.grey)
-                                : null,
+              ),
+              const Divider(),
+              Expanded(
+                child:
+                    _isLoading
+                        ? Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1976D2),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                        )
+                        : _error != null
+                        ? Center(
+                          child: Text(
+                            _error!,
+                            style: GoogleFonts.poppins(color: Colors.red),
+                          ),
+                        )
+                        : _comments.isEmpty
+                        ? Center(
+                          child: Text(
+                            'Aucun commentaire pour l\'instant',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        )
+                        : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _comments.length,
+                          itemBuilder: (context, index) {
+                            final comment = _comments[index];
+                            final isOwner =
+                                comment.userId == widget.currentUser.id;
+
+                            return GestureDetector(
+                              onTap:
+                                  isOwner
+                                      ? () => _confirmDelete(comment)
+                                      : null,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      comment.username,
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: Colors.grey.shade200,
+                                      backgroundImage:
+                                          _isValidUrl(comment.profilePicture)
+                                              ? NetworkImage(
+                                                comment.profilePicture!,
+                                              )
+                                              : null,
+                                      child:
+                                          !_isValidUrl(comment.profilePicture)
+                                              ? const Icon(
+                                                Icons.person,
+                                                color: Colors.grey,
+                                              )
+                                              : null,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      timeago.format(comment.createdAt, locale: 'fr'),
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 12,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                comment.username,
+                                                style: GoogleFonts.poppins(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                timeago.format(
+                                                  comment.createdAt,
+                                                  locale: 'fr',
+                                                ),
+                                                style: GoogleFonts.poppins(
+                                                  color: Colors.grey.shade600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            comment.content,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  comment.content,
-                                  style: GoogleFonts.poppins(fontSize: 14),
-                                ),
-                              ],
+                              ),
+                            );
+                          },
+                        ),
+              ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: InputDecoration(
+                            hintText: 'Ajouter un commentaire...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        decoration: InputDecoration(
-                          hintText: 'Ajouter un commentaire...',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
-                      onPressed: _addComment,
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.send, color: Color(0xFF1E88E5)),
+                        onPressed: _addComment,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

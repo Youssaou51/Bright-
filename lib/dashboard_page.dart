@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,9 +13,7 @@ import 'post.dart';
 import 'user.dart' as local;
 import 'foundation_amount_widget.dart';
 import 'utils/error_handler.dart';
-import 'dart:async';
-import 'dart:io';
-
+import 'utils/responsive.dart';
 
 class DashboardPage extends StatefulWidget {
   final local.User currentUser;
@@ -25,7 +24,8 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with SingleTickerProviderStateMixin {
+class _DashboardPageState extends State<DashboardPage>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late PageController _pageController;
   final ImagePicker _picker = ImagePicker();
@@ -39,8 +39,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _pageController = PageController();
-    print('DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}');
-    print('Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}');
+    print(
+      'DashboardPage init: user=${widget.currentUser.id}, username=${widget.currentUser.username}',
+    );
+    print(
+      'Supabase auth user: ${Supabase.instance.client.auth.currentUser?.id}',
+    );
     _checkUserRole();
     _loadPosts();
     _loadInitialAmount();
@@ -70,8 +74,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Pas de connexion Internet.',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Pas de connexion Internet.',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -81,8 +87,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Le serveur met trop de temps à répondre.',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Le serveur met trop de temps à répondre.',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.orangeAccent,
           ),
         );
@@ -92,8 +100,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur inattendue. Rôle par défaut : utilisateur.',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Erreur inattendue. Rôle par défaut : utilisateur.',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -122,8 +132,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Impossible de charger le montant (hors ligne).',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Impossible de charger le montant (hors ligne).',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -134,8 +146,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Temps de réponse dépassé. Réessayez plus tard.',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Temps de réponse dépassé. Réessayez plus tard.',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.orangeAccent,
           ),
         );
@@ -146,8 +160,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur lors du chargement du montant.',
-                style: GoogleFonts.poppins()),
+            content: Text(
+              'Erreur lors du chargement du montant.',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -174,18 +190,22 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           .eq('user_id', widget.currentUser.id)
           .timeout(const Duration(seconds: 5));
       print('Likes response: $likesResponse');
-      final likedPostIds = likesResponse
-          .map<String>((like) => like['post_id'] as String)
-          .toSet();
+      final likedPostIds =
+          likesResponse
+              .map<String>((like) => like['post_id'] as String)
+              .toSet();
       setState(() {
-        _posts = postsResponse.map<Post>((e) {
-          final postJson = Map<String, dynamic>.from(e);
-          final commentCountList = e['comment_count'] as List<dynamic>?;
-          postJson['comment_count'] = commentCountList != null && commentCountList.isNotEmpty
-              ? (commentCountList[0] as Map<String, dynamic>)['count'] as int
-              : 0;
-          return Post.fromJson(postJson);
-        }).toList();
+        _posts =
+            postsResponse.map<Post>((e) {
+              final postJson = Map<String, dynamic>.from(e);
+              final commentCountList = e['comment_count'] as List<dynamic>?;
+              postJson['comment_count'] =
+                  commentCountList != null && commentCountList.isNotEmpty
+                      ? (commentCountList[0] as Map<String, dynamic>)['count']
+                          as int
+                      : 0;
+              return Post.fromJson(postJson);
+            }).toList();
         _likedPostIds = likedPostIds;
         print('Nombre de posts chargés : ${_posts.length}');
       });
@@ -221,163 +241,274 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   void _showMediaSourceDialog() {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      backgroundColor: Colors.white,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.camera_alt, color: Color(0xFF1976D2)),
-              title: Text('Prendre une photo', style: GoogleFonts.poppins()),
-              onTap: () async {
-                Navigator.pop(context);
-                final file = await _picker.pickImage(source: ImageSource.camera);
-                if (file != null) {
-                  _promptForCaption([File(file.path)], [], 'Nouveau post photo');
-                }
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.image, color: Colors.teal),
-              title: Text('Galerie photo', style: GoogleFonts.poppins()),
-              onTap: () async {
-                Navigator.pop(context);
-                final file = await _picker.pickImage(source: ImageSource.gallery);
-                if (file != null) {
-                  _promptForCaption([File(file.path)], [], 'Nouveau post photo');
-                }
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.videocam, color: Colors.redAccent),
-              title: Text('Enregistrer une vidéo', style: GoogleFonts.poppins()),
-              onTap: () async {
-                Navigator.pop(context);
-                final file = await _picker.pickVideo(source: ImageSource.camera);
-                if (file != null) {
-                  _promptForCaption([], [File(file.path)], 'Nouveau post vidéo');
-                }
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.video_library, color: Colors.deepPurple),
-              title: Text('Vidéo depuis galerie', style: GoogleFonts.poppins()),
-              onTap: () async {
-                Navigator.pop(context);
-                final file = await _picker.pickVideo(source: ImageSource.gallery);
-                if (file != null) {
-                  _promptForCaption([], [File(file.path)], 'Nouveau post vidéo');
-                }
-              },
-            ),
-          ],
-        ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      backgroundColor: Colors.white,
+      builder:
+          (_) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: Icon(Icons.camera_alt, color: Color(0xFF1976D2)),
+                  title: Text(
+                    'Prendre une photo',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      final file = await _picker.pickImage(
+                        source: ImageSource.camera,
+                      );
+                      if (file != null && mounted) {
+                        _promptForCaption(
+                          [File(file.path)],
+                          [],
+                          'Nouveau post photo',
+                        );
+                      }
+                    } catch (e) {
+                      print('Error picking image: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erreur lors de la prise de photo'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.image, color: Colors.teal),
+                  title: Text('Galerie photo', style: GoogleFonts.poppins()),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      final file = await _picker.pickImage(
+                        source: ImageSource.gallery,
+                      );
+                      if (file != null && mounted) {
+                        _promptForCaption(
+                          [File(file.path)],
+                          [],
+                          'Nouveau post photo',
+                        );
+                      }
+                    } catch (e) {
+                      print('Error picking image: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Erreur lors de la sélection de photo',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.videocam, color: Colors.redAccent),
+                  title: Text(
+                    'Enregistrer une vidéo',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      final file = await _picker.pickVideo(
+                        source: ImageSource.camera,
+                      );
+                      if (file != null && mounted) {
+                        _promptForCaption([], [
+                          File(file.path),
+                        ], 'Nouveau post vidéo');
+                      }
+                    } catch (e) {
+                      print('Error picking video: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Erreur lors de l\'enregistrement vidéo',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.video_library, color: Colors.deepPurple),
+                  title: Text(
+                    'Vidéo depuis galerie',
+                    style: GoogleFonts.poppins(),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      final file = await _picker.pickVideo(
+                        source: ImageSource.gallery,
+                      );
+                      if (file != null && mounted) {
+                        _promptForCaption([], [
+                          File(file.path),
+                        ], 'Nouveau post vidéo');
+                      }
+                    } catch (e) {
+                      print('Error picking video: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erreur lors de la sélection vidéo'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
     );
   }
 
-  void _promptForCaption(List<File> images, List<File> videos, String defaultCaption) {
+  void _promptForCaption(
+    List<File> images,
+    List<File> videos,
+    String defaultCaption,
+  ) {
     String caption = defaultCaption;
+
+    // Ensure we're still mounted before showing dialog
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "Ajouter une légende",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                onChanged: (value) => caption = value,
-                decoration: InputDecoration(
-                  hintText: 'Saisir une légende...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                style: GoogleFonts.poppins(),
-                maxLines: 3,
-              ),
-              SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      "Annuler",
-                      style: GoogleFonts.poppins(color: Colors.grey[600]),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _addPost(images, videos, caption);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF1976D2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    ),
-                    child: Text(
-                      "Publier",
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500, // Corrected from Weight.w500
-                      ),
-                    ),
+      barrierDismissible: false,
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Ajouter une légende",
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  TextField(
+                    autofocus: true,
+                    onChanged: (value) => caption = value,
+                    decoration: InputDecoration(
+                      hintText: 'Saisir une légende...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    style: GoogleFonts.poppins(),
+                    maxLines: 3,
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: Text(
+                          "Annuler",
+                          style: GoogleFonts.poppins(color: Colors.grey[600]),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogContext);
+                          _addPost(images, videos, caption);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1976D2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
+                        child: Text(
+                          "Publier",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight:
+                                FontWeight.w500, // Corrected from Weight.w500
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 
-  Future<void> _addPost(List<File> images, List<File> videos, String caption) async {
+  Future<void> _addPost(
+    List<File> images,
+    List<File> videos,
+    String caption,
+  ) async {
     try {
       final hasConnection = await ErrorHandler.checkInternetConnection();
       if (!hasConnection) {
-        ErrorHandler.showError(context, "Aucune connexion Internet. Réessaie plus tard.");
+        ErrorHandler.showError(
+          context,
+          "Aucune connexion Internet. Réessaie plus tard.",
+        );
         return;
       }
 
@@ -397,11 +528,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         videoUrls.add(_supabase.storage.from('posts').getPublicUrl(path));
       }
 
-      final userResponse = await _supabase
-          .from('users')
-          .select('profile_picture')
-          .eq('id', widget.currentUser.id)
-          .single();
+      final userResponse =
+          await _supabase
+              .from('users')
+              .select('profile_picture')
+              .eq('id', widget.currentUser.id)
+              .single();
 
       final profilePictureUrl = userResponse['profile_picture'] as String?;
 
@@ -417,7 +549,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         'timestamp': DateTime.now().toIso8601String(),
       };
 
-      final inserted = await _supabase.from('posts').insert(post).select().single();
+      final inserted =
+          await _supabase.from('posts').insert(post).select().single();
 
       // 🔔 Notification via Edge Function
       await _supabase.functions.invoke(
@@ -444,7 +577,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       setState(() {
         _selectedIndex = 0;
       });
-
     } catch (error) {
       ErrorHandler.handleException(context, error);
     }
@@ -455,185 +587,197 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
     showDialog(
       context: context,
-      builder: (dialogContext) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Modifier le montant de la fondation',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: _controller,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  hintText: 'Nouveau montant (€)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                style: GoogleFonts.poppins(),
-              ),
-              SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      print('Update funds dialog cancelled');
-                      Navigator.pop(dialogContext);
-                    },
-                    child: Text(
-                      'Annuler',
-                      style: GoogleFonts.poppins(color: Colors.grey[600]),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final enteredAmount = double.tryParse(_controller.text);
-                      if (enteredAmount == null || enteredAmount < 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Veuillez entrer un montant valide',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.redAccent,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-
-                      print('Updating funds to $enteredAmount');
-
-                      try {
-                        await _supabase
-
-                            .from('funds')
-                            .upsert({
-                          'id': 'foundation-funds',
-                          'amount': enteredAmount,
-                          'updated_by': widget.currentUser.username,
-                          'updated_at': DateTime.now().toIso8601String(),
-                        })
-                            .timeout(const Duration(seconds: 6));
-
-                        setState(() {
-                          _currentAmount = enteredAmount;
-                        });
-
-                        Navigator.pop(dialogContext);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Montant mis à jour avec succès !',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.teal[700]!,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      } on TimeoutException {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '⏳ La connexion a expiré. Vérifiez votre réseau.',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.orangeAccent,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      } on SocketException {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '⚠️ Pas de connexion Internet. Réessayez plus tard.',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.redAccent,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      } catch (error) {
-                        print('Unexpected error updating funds: $error');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '❌ Erreur inattendue. Veuillez réessayer.',
-                              style: GoogleFonts.poppins(),
-                            ),
-                            backgroundColor: Colors.redAccent,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF1976D2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    ),
-                    child: Text(
-                      'Mettre à jour',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+      builder:
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Modifier le montant de la fondation',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  TextField(
+                    controller: _controller,
+                    keyboardType: TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Nouveau montant (€)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    style: GoogleFonts.poppins(),
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          print('Update funds dialog cancelled');
+                          Navigator.pop(dialogContext);
+                        },
+                        child: Text(
+                          'Annuler',
+                          style: GoogleFonts.poppins(color: Colors.grey[600]),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final enteredAmount = double.tryParse(
+                            _controller.text,
+                          );
+                          if (enteredAmount == null || enteredAmount < 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Veuillez entrer un montant valide',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          print('Updating funds to $enteredAmount');
+
+                          try {
+                            await _supabase
+                                .from('funds')
+                                .upsert({
+                                  'id': 'foundation-funds',
+                                  'amount': enteredAmount,
+                                  'updated_by': widget.currentUser.username,
+                                  'updated_at':
+                                      DateTime.now().toIso8601String(),
+                                })
+                                .timeout(const Duration(seconds: 6));
+
+                            setState(() {
+                              _currentAmount = enteredAmount;
+                            });
+
+                            Navigator.pop(dialogContext);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Montant mis à jour avec succès !',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: Colors.teal[700]!,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          } on TimeoutException {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '⏳ La connexion a expiré. Vérifiez votre réseau.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: Colors.orangeAccent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          } on SocketException {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '⚠️ Pas de connexion Internet. Réessayez plus tard.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          } catch (error) {
+                            print('Unexpected error updating funds: $error');
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '❌ Erreur inattendue. Veuillez réessayer.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1976D2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
+                        child: Text(
+                          'Mettre à jour',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
     ).catchError((error) {
       print('Error showing update funds dialog: $error');
     });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -733,7 +877,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           unselectedItemColor: Colors.black,
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          selectedLabelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+          selectedLabelStyle: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
           unselectedLabelStyle: GoogleFonts.poppins(fontSize: 12),
           elevation: 0,
           items: [

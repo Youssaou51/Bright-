@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'utils/responsive.dart';
 
 class ManageRolesPage extends StatefulWidget {
   final SupabaseClient supabase;
@@ -39,14 +40,14 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Impossible de charger les utilisateurs. Vérifie ta connexion.'),
+          content: Text(
+            '⚠️ Impossible de charger les utilisateurs. Vérifie ta connexion.',
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
-
-
 
   Future<void> _toggleActivation(String userId, bool isActive) async {
     try {
@@ -64,7 +65,9 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isActive ? '✅ Utilisateur activé' : '❌ Utilisateur désactivé'),
+          content: Text(
+            isActive ? '✅ Utilisateur activé' : '❌ Utilisateur désactivé',
+          ),
           backgroundColor: isActive ? Colors.green : Colors.redAccent,
         ),
       );
@@ -72,13 +75,14 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
       print('Error toggling activation: $e'); // Log pour debug seulement
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Impossible de mettre à jour l’activation. Réessaie.'),
+          content: Text(
+            '⚠️ Impossible de mettre à jour l’activation. Réessaie.',
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
     }
   }
-
 
   Future<void> _updateRole(String userId, String newRole) async {
     try {
@@ -111,12 +115,18 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Gérer les Rôles', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+        title: Text(
+          'Gérer les Rôles',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -130,78 +140,129 @@ class _ManageRolesPageState extends State<ManageRolesPage> {
       ),
       body: Container(
         color: Colors.white,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-            : _users.isEmpty
-            ? const Center(child: Text('Aucun utilisateur trouvé.', style: TextStyle(fontSize: 16, color: Colors.grey)))
-            : ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: _users.length,
-          itemBuilder: (context, index) {
-            final user = _users[index];
-            return Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Color(0xFF1976D2).withOpacity(0.1),
-                      child: Text(user['username'][0], style: GoogleFonts.poppins(color: Color(0xFF1976D2), fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(user['username'], style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text('Rôle: ${user['role']}', style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600])),
-                          Text('Actif: ${user['is_active'] ? 'Oui' : 'Non'}', style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600])),
-                        ],
+        child:
+            _isLoading
+                ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF1976D2)),
+                )
+                : _users.isEmpty
+                ? const Center(
+                  child: Text(
+                    'Aucun utilisateur trouvé.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                )
+                : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: _users.length,
+                  itemBuilder: (context, index) {
+                    final user = _users[index];
+                    return Card(
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    Row(
-                      children: [
-                        DropdownButton<String>(
-                          value: user['role'],
-                          items: ['user', 'admin'].map((String role) {
-                            return DropdownMenuItem<String>(
-                              value: role,
-                              child: Text(role, style: GoogleFonts.poppins(fontSize: 14)),
-                            );
-                          }).toList(),
-                          onChanged: (String? newRole) {
-                            if (newRole != null && newRole != user['role']) {
-                              _updateRole(user['id'], newRole);
-                            }
-                          },
-                          dropdownColor: Colors.white,
-                          style: GoogleFonts.poppins(color: Color(0xFF1976D2)),
-                          underline: Container(),
-                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1976D2)),
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Color(
+                                0xFF1976D2,
+                              ).withOpacity(0.1),
+                              child: Text(
+                                user['username'][0],
+                                style: GoogleFonts.poppins(
+                                  color: Color(0xFF1976D2),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    user['username'],
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Rôle: ${user['role']}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  Text(
+                                    'Actif: ${user['is_active'] ? 'Oui' : 'Non'}',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                DropdownButton<String>(
+                                  value: user['role'],
+                                  items:
+                                      ['user', 'admin'].map((String role) {
+                                        return DropdownMenuItem<String>(
+                                          value: role,
+                                          child: Text(
+                                            role,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                  onChanged: (String? newRole) {
+                                    if (newRole != null &&
+                                        newRole != user['role']) {
+                                      _updateRole(user['id'], newRole);
+                                    }
+                                  },
+                                  dropdownColor: Colors.white,
+                                  style: GoogleFonts.poppins(
+                                    color: Color(0xFF1976D2),
+                                  ),
+                                  underline: Container(),
+                                  icon: const Icon(
+                                    Icons.arrow_drop_down,
+                                    color: Color(0xFF1976D2),
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Switch(
+                                  value: user['is_active'] ?? false,
+                                  onChanged: (bool newValue) {
+                                    _toggleActivation(user['id'], newValue);
+                                  },
+                                  activeColor: Colors.green,
+                                  inactiveThumbColor: Colors.redAccent,
+                                  activeTrackColor: Colors.green.withOpacity(
+                                    0.5,
+                                  ),
+                                  inactiveTrackColor: Colors.redAccent
+                                      .withOpacity(0.5),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Switch(
-                          value: user['is_active'] ?? false,
-                          onChanged: (bool newValue) {
-                            _toggleActivation(user['id'], newValue);
-                          },
-                          activeColor: Colors.green,
-                          inactiveThumbColor: Colors.redAccent,
-                          activeTrackColor: Colors.green.withOpacity(0.5),
-                          inactiveTrackColor: Colors.redAccent.withOpacity(0.5),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-            );
-          },
-        ),
       ),
     );
   }

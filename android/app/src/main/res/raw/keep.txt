@@ -1,0 +1,1 @@
+# Ce fichier force Android à garder le dossier raw et tous les assets

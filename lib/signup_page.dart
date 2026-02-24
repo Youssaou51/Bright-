@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dashboard_page.dart';
 import 'package:firebase_core/firebase_core.dart';
-
+import 'utils/responsive.dart';
 
 class SignupPage extends StatefulWidget {
   @override
@@ -29,9 +29,12 @@ class _SignupPageState extends State<SignupPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
+          backgroundColor:
+              isError ? Colors.red.shade600 : Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -40,11 +43,12 @@ class _SignupPageState extends State<SignupPage> {
       final email = _emailController.text.trim();
 
       // 🔍 ÉTAPE 1 : Vérifier si l'email existe déjà dans la table users
-      final existing = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', email)
-          .maybeSingle();
+      final existing =
+          await supabase
+              .from('users')
+              .select('id')
+              .eq('email', email)
+              .maybeSingle();
 
       if (existing != null) {
         _showMessage(
@@ -104,9 +108,6 @@ class _SignupPageState extends State<SignupPage> {
       setState(() => _isLoading = false);
     }
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -235,15 +236,16 @@ class _SignupPageState extends State<SignupPage> {
                                 : Icons.visibility,
                             color: Colors.grey.shade600,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscurePassword = !_obscurePassword),
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                         ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty)
                           return 'Password required';
-                        if (value.length < 6)
-                          return 'Minimum 6 characters';
+                        if (value.length < 6) return 'Minimum 6 characters';
                         return null;
                       },
                     ),
@@ -272,22 +274,23 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                           elevation: 0,
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                            : const Text(
-                          'Sign Up',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child:
+                            _isLoading
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text(
+                                  'Sign Up',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -297,11 +300,13 @@ class _SignupPageState extends State<SignupPage> {
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content:
-                            const Text('Terms & Conditions coming soon!'),
+                            content: const Text(
+                              'Terms & Conditions coming soon!',
+                            ),
                             behavior: SnackBarBehavior.floating,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         );
                       },
@@ -345,8 +350,7 @@ class _SignupPageState extends State<SignupPage> {
       ),
       filled: true,
       fillColor: Colors.grey.shade50,
-      contentPadding:
-      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       labelStyle: TextStyle(color: Colors.grey.shade600),
       hintStyle: TextStyle(color: Colors.grey.shade500),
     );

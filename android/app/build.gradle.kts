@@ -33,8 +33,14 @@ android {
         applicationId = "com.boboy.bright"
         minSdk = flutter.minSdkVersion // ⚠ flutter_local_notifications nécessite minSdk >= 21
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.0.1"
+        
+        // Force la locale par défaut pour éviter le texte en chinois
+        resConfigs("en", "fr")
+        
+        // Empêcher la suppression des ressources non utilisées
+        vectorDrawables.useSupportLibrary = true
     }
 
     signingConfigs {
@@ -49,6 +55,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // Désactiver le shrinking des ressources pour éviter la suppression des assets
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }

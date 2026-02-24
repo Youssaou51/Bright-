@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'utils/responsive.dart';
 
 class Task {
   final String id;
@@ -25,7 +26,7 @@ class Task {
       dueDate: DateTime.parse(map['due_date']),
       isCompleted: map['is_completed'] ?? false,
       priority: Priority.values.firstWhere(
-            (e) => e.name == (map['priority'] ?? 'medium'),
+        (e) => e.name == (map['priority'] ?? 'medium'),
         orElse: () => Priority.medium,
       ),
     );
@@ -59,13 +60,18 @@ class _TasksPageState extends State<TasksPage> {
   bool isAdmin = false;
 
   List<Task> get _filteredTasks {
-    return _tasks.where((task) =>
-    task.title.toLowerCase().contains(_searchQuery.toLowerCase()) &&
-        task.dueDate.month == _selectedMonth.month &&
-        task.dueDate.year == _selectedMonth.year).toList();
+    return _tasks
+        .where(
+          (task) =>
+              task.title.toLowerCase().contains(_searchQuery.toLowerCase()) &&
+              task.dueDate.month == _selectedMonth.month &&
+              task.dueDate.year == _selectedMonth.year,
+        )
+        .toList();
   }
 
-  int get _completedTasksCount => _filteredTasks.where((task) => task.isCompleted).length;
+  int get _completedTasksCount =>
+      _filteredTasks.where((task) => task.isCompleted).length;
 
   @override
   void initState() {
@@ -85,9 +91,10 @@ class _TasksPageState extends State<TasksPage> {
       final response = await supabase.from('tasks').select();
       if (response != null && response.isNotEmpty) {
         setState(() {
-          _tasks = List<Map<String, dynamic>>.from(response)
-              .map((map) => Task.fromMap(map))
-              .toList();
+          _tasks =
+              List<Map<String, dynamic>>.from(
+                response,
+              ).map((map) => Task.fromMap(map)).toList();
         });
       } else {
         setState(() => _tasks = []);
@@ -105,11 +112,12 @@ class _TasksPageState extends State<TasksPage> {
     final userId = supabase.auth.currentUser?.id;
     if (userId == null) return;
 
-    final response = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+    final response =
+        await supabase
+            .from('users')
+            .select('role')
+            .eq('id', userId)
+            .maybeSingle();
 
     if (response != null && response['role'] == 'admin') {
       setState(() {
@@ -169,19 +177,29 @@ class _TasksPageState extends State<TasksPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           elevation: 6,
           child: Container(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Add Task', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600)),
+                Text(
+                  'Add Task',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 20),
                 TextField(
                   decoration: InputDecoration(
                     labelText: 'Title',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                   ),
@@ -192,19 +210,25 @@ class _TasksPageState extends State<TasksPage> {
                   value: priority,
                   decoration: InputDecoration(
                     labelText: 'Priority',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                   ),
                   onChanged: (Priority? newValue) {
                     if (newValue != null) priority = newValue;
                   },
-                  items: Priority.values.map((Priority value) {
-                    return DropdownMenuItem<Priority>(
-                      value: value,
-                      child: Text(value.name.capitalize(), style: GoogleFonts.poppins()),
-                    );
-                  }).toList(),
+                  items:
+                      Priority.values.map((Priority value) {
+                        return DropdownMenuItem<Priority>(
+                          value: value,
+                          child: Text(
+                            value.name.capitalize(),
+                            style: GoogleFonts.poppins(),
+                          ),
+                        );
+                      }).toList(),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -217,16 +241,14 @@ class _TasksPageState extends State<TasksPage> {
                           if (userId == null) return;
 
                           try {
-                            final response = await supabase
-                                .from('tasks')
-                                .insert({
-                              'user_id': userId,
-                              'title': title,
-                              'due_date': DateTime.now().toIso8601String(),
-                              'is_completed': false,
-                              'priority': priority.name,
-                            })
-                                .select();
+                            final response =
+                                await supabase.from('tasks').insert({
+                                  'user_id': userId,
+                                  'title': title,
+                                  'due_date': DateTime.now().toIso8601String(),
+                                  'is_completed': false,
+                                  'priority': priority.name,
+                                }).select();
 
                             if (response != null) {
                               await _loadTasks();
@@ -238,16 +260,24 @@ class _TasksPageState extends State<TasksPage> {
                           if (mounted) Navigator.of(context).pop();
                         }
                       },
-                      child: Text('Add', style: GoogleFonts.poppins(color: Colors.white)),
+                      child: Text(
+                        'Add',
+                        style: GoogleFonts.poppins(color: Colors.white),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF1976D2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         elevation: 0,
                       ),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: Text('Cancel', style: GoogleFonts.poppins(color: Color(0xFF1976D2))),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.poppins(color: Color(0xFF1976D2)),
+                      ),
                     ),
                   ],
                 ),
@@ -270,7 +300,10 @@ class _TasksPageState extends State<TasksPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
-        title: Text('Tasks', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Tasks',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -285,15 +318,30 @@ class _TasksPageState extends State<TasksPage> {
                 children: [
                   IconButton(
                     icon: Icon(Icons.arrow_left, color: Color(0xFF1976D2)),
-                    onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month - 1)),
+                    onPressed:
+                        () => _selectMonth(
+                          DateTime(
+                            _selectedMonth.year,
+                            _selectedMonth.month - 1,
+                          ),
+                        ),
                   ),
                   Text(
                     DateFormat.yMMMM().format(_selectedMonth),
-                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   IconButton(
                     icon: Icon(Icons.arrow_right, color: Color(0xFF1976D2)),
-                    onPressed: () => _selectMonth(DateTime(_selectedMonth.year, _selectedMonth.month + 1)),
+                    onPressed:
+                        () => _selectMonth(
+                          DateTime(
+                            _selectedMonth.year,
+                            _selectedMonth.month + 1,
+                          ),
+                        ),
                   ),
                 ],
               ),
@@ -303,7 +351,9 @@ class _TasksPageState extends State<TasksPage> {
                 decoration: InputDecoration(
                   hintText: 'Search tasks',
                   prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   filled: true,
                   fillColor: Colors.grey.shade50,
                 ),
@@ -313,7 +363,10 @@ class _TasksPageState extends State<TasksPage> {
                 child: Column(
                   children: [
                     CircularProgressIndicator(
-                      value: _filteredTasks.isEmpty ? 0 : _completedTasksCount / _filteredTasks.length,
+                      value:
+                          _filteredTasks.isEmpty
+                              ? 0
+                              : _completedTasksCount / _filteredTasks.length,
                       backgroundColor: Colors.grey.shade300,
                       color: Color(0xFF1976D2),
                       strokeWidth: 6,
@@ -321,7 +374,10 @@ class _TasksPageState extends State<TasksPage> {
                     const SizedBox(height: 16),
                     Text(
                       '$_completedTasksCount/${_filteredTasks.length} tasks completed',
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -329,86 +385,123 @@ class _TasksPageState extends State<TasksPage> {
               const SizedBox(height: 16),
               SizedBox(
                 height: MediaQuery.of(context).size.height - 300,
-                child: _isLoading
-                    ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-                    : _filteredTasks.isEmpty
-                    ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.assignment, size: 64, color: Colors.grey.shade400),
-                      const SizedBox(height: 16),
-                      Text('No tasks for this month.', style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600)),
-                    ],
-                  ),
-                )
-                    : ListView.builder(
-                  shrinkWrap: true,
-                  physics: NeverScrollableScrollPhysics(),
-                  itemCount: _filteredTasks.length,
-                  itemBuilder: (context, index) {
-                    final task = _filteredTasks[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: ListTile(
-                        leading: Checkbox(
-                          value: task.isCompleted,
-                          onChanged: isAdmin ? (_) => _toggleTaskCompletion(task) : null,
-                          activeColor: Color(0xFF1976D2),
-                        ),
-                        title: Text(
-                          task.title,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                child:
+                    _isLoading
+                        ? Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF1976D2),
                           ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Due: ${DateFormat.yMd().format(task.dueDate)}', style: GoogleFonts.poppins(color: Colors.grey.shade600)),
-                            const SizedBox(height: 4),
-                            Chip(
-                              label: Text(
-                                task.priority.name.capitalize(),
-                                style: GoogleFonts.poppins(color: Colors.white),
-                              ),
-                              backgroundColor: task.priority == Priority.low
-                                  ? Colors.green
-                                  : task.priority == Priority.medium
-                                  ? Colors.orange
-                                  : Colors.red,
-                            ),
-                          ],
-                        ),
-                        trailing: isAdmin
-                            ? IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red.shade400),
-                          onPressed: () => _deleteTask(task),
                         )
-                            : null,
-                      ),
-                    );
-                  },
-                ),
+                        : _filteredTasks.isEmpty
+                        ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.assignment,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No tasks for this month.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                        : ListView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: _filteredTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = _filteredTasks[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                leading: Checkbox(
+                                  value: task.isCompleted,
+                                  onChanged:
+                                      isAdmin
+                                          ? (_) => _toggleTaskCompletion(task)
+                                          : null,
+                                  activeColor: Color(0xFF1976D2),
+                                ),
+                                title: Text(
+                                  task.title,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w600,
+                                    decoration:
+                                        task.isCompleted
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Due: ${DateFormat.yMd().format(task.dueDate)}',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Chip(
+                                      label: Text(
+                                        task.priority.name.capitalize(),
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      backgroundColor:
+                                          task.priority == Priority.low
+                                              ? Colors.green
+                                              : task.priority == Priority.medium
+                                              ? Colors.orange
+                                              : Colors.red,
+                                    ),
+                                  ],
+                                ),
+                                trailing:
+                                    isAdmin
+                                        ? IconButton(
+                                          icon: Icon(
+                                            Icons.delete,
+                                            color: Colors.red.shade400,
+                                          ),
+                                          onPressed: () => _deleteTask(task),
+                                        )
+                                        : null,
+                              ),
+                            );
+                          },
+                        ),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton(
-        onPressed: _addTaskDialog,
-        child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Color(0xFF1976D2),
-      )
-          : null,
+      floatingActionButton:
+          isAdmin
+              ? FloatingActionButton(
+                onPressed: _addTaskDialog,
+                child: Icon(Icons.add, color: Colors.white),
+                backgroundColor: Color(0xFF1976D2),
+              )
+              : null,
     );
   }
 }
 
 extension CapitalizeString on String {
-  String capitalize() => isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
+  String capitalize() =>
+      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }

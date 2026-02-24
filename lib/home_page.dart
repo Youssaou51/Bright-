@@ -11,6 +11,7 @@ import 'comments_page.dart';
 import 'user.dart' as AppUser;
 import 'utils/error_handler.dart';
 import 'utils/network_helper.dart';
+import 'utils/responsive.dart';
 
 class HomePage extends StatefulWidget {
   final List<Post> posts;
@@ -30,7 +31,8 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   late SupabaseClient _supabase;
   List<Post> _posts = [];
   bool _isLoading = true;
@@ -65,34 +67,42 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _setupRealtimeListener() {
     _postsChannel = _supabase.channel('homepage_posts');
 
-    _postsChannel.onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'posts',
-      callback: (payload) {
-        print('🆕 Nouveau post détecté en temps réel: ${payload.newRecord}');
+    _postsChannel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'posts',
+          callback: (payload) {
+            print(
+              '🆕 Nouveau post détecté en temps réel: ${payload.newRecord}',
+            );
 
-        // Rafraîchir automatiquement les posts
-        _fetchPosts();
-      },
-    ).onPostgresChanges(
-      event: PostgresChangeEvent.delete,
-      schema: 'public',
-      table: 'posts',
-      callback: (payload) {
-        print('🗑️ Post supprimé détecté en temps réel: ${payload.oldRecord}');
-        _fetchPosts();
-      },
-    ).subscribe();
+            // Rafraîchir automatiquement les posts
+            _fetchPosts();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'posts',
+          callback: (payload) {
+            print(
+              '🗑️ Post supprimé détecté en temps réel: ${payload.oldRecord}',
+            );
+            _fetchPosts();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _checkIfAdmin() async {
     final userId = widget.currentUser.id;
-    final response = await _supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+    final response =
+        await _supabase
+            .from('users')
+            .select('role')
+            .eq('id', userId)
+            .maybeSingle();
     if (response != null && response['role'] == 'admin') {
       setState(() {
         // Update currentUser.role if mutable, or manage admin state separately
@@ -110,16 +120,18 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
     final response = await runNetworkCall(
       context: context,
-      networkCall: () => _supabase
-          .from('posts')
-          .select('''
+      networkCall:
+          () => _supabase
+              .from('posts')
+              .select('''
           *,
           likes_count:likes(count),
           comment_count:comments(count)
         ''')
-          .order('timestamp', ascending: false)
-          .limit(50),
-      errorMessage: 'Impossible de charger les posts. Vérifiez votre connexion.',
+              .order('timestamp', ascending: false)
+              .limit(50),
+      errorMessage:
+          'Impossible de charger les posts. Vérifiez votre connexion.',
     );
 
     if (response == null) {
@@ -132,18 +144,22 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return;
     }
 
-    final List<Post> fetchedPosts = (response as List).map((data) {
-      final likesCount = (data['likes_count'] as List?)?.isNotEmpty == true
-          ? data['likes_count'][0]['count'] as int
-          : 0;
-      final commentCount = (data['comment_count'] as List?)?.isNotEmpty == true
-          ? data['comment_count'][0]['count'] as int
-          : 0;
-      final Map<String, dynamic> postData = Map<String, dynamic>.from(data)
-        ..['likes_count'] = likesCount
-        ..['comment_count'] = commentCount;
-      return Post.fromJson(postData);
-    }).toList();
+    final List<Post> fetchedPosts =
+        (response as List).map((data) {
+          final likesCount =
+              (data['likes_count'] as List?)?.isNotEmpty == true
+                  ? data['likes_count'][0]['count'] as int
+                  : 0;
+          final commentCount =
+              (data['comment_count'] as List?)?.isNotEmpty == true
+                  ? data['comment_count'][0]['count'] as int
+                  : 0;
+          final Map<String, dynamic> postData =
+              Map<String, dynamic>.from(data)
+                ..['likes_count'] = likesCount
+                ..['comment_count'] = commentCount;
+          return Post.fromJson(postData);
+        }).toList();
 
     if (mounted) {
       setState(() {
@@ -156,18 +172,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   Future<void> _loadInitialLikes() async {
     final response = await runNetworkCall(
       context: context,
-      networkCall: () => _supabase
-          .from('likes')
-          .select('post_id')
-          .eq('user_id', widget.currentUser.id)
-          .timeout(const Duration(seconds: 5)),
+      networkCall:
+          () => _supabase
+              .from('likes')
+              .select('post_id')
+              .eq('user_id', widget.currentUser.id)
+              .timeout(const Duration(seconds: 5)),
       errorMessage: 'Erreur de chargement des likes initiaux.',
     );
 
     if (response != null && mounted) {
       setState(() {
         _likedPostIds =
-            (response as List).map<String>((like) => like['post_id'] as String).toSet();
+            (response as List)
+                .map<String>((like) => like['post_id'] as String)
+                .toSet();
       });
     }
   }
@@ -194,16 +213,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             .eq('user_id', userId)
             .timeout(const Duration(seconds: 5));
       } else {
-        await _supabase.from('likes').insert({
-          'post_id': post.id,
-          'user_id': userId,
-        }).timeout(const Duration(seconds: 5));
+        await _supabase
+            .from('likes')
+            .insert({'post_id': post.id, 'user_id': userId})
+            .timeout(const Duration(seconds: 5));
       }
     } catch (e) {
-      String errorMessage = 'Erreur lors du like/désaimage. Veuillez réessayer.';
+      String errorMessage =
+          'Erreur lors du like/désaimage. Veuillez réessayer.';
       if (e.toString().contains('violates row-level security policy')) {
-        errorMessage = 'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
-      } else if (e.toString().contains('foreign key constraint') || e.toString().contains('23503')) {
+        errorMessage =
+            'Erreur : Permissions insuffisantes pour aimer/supprimer le like.';
+      } else if (e.toString().contains('foreign key constraint') ||
+          e.toString().contains('23503')) {
         errorMessage = 'Erreur : Publication ou utilisateur non trouvé.';
       }
       ScaffoldMessenger.of(context).showSnackBar(
@@ -232,47 +254,60 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final updatedCommentCount = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CommentsPage(post: post, currentUser: widget.currentUser),
+        builder:
+            (context) =>
+                CommentsPage(post: post, currentUser: widget.currentUser),
         fullscreenDialog: true,
       ),
     );
-    if (updatedCommentCount != null && updatedCommentCount != post.commentCount) {
+    if (updatedCommentCount != null) {
       setState(() {
-        post.commentCount = updatedCommentCount;
+        // Find the post in the list and update its comment count
+        final postIndex = _posts.indexWhere((p) => p.id == post.id);
+        if (postIndex != -1) {
+          _posts[postIndex].commentCount = updatedCommentCount;
+        }
       });
     }
   }
 
-  void _showMediaViewer(BuildContext context, List<String> media, int initialIndex, bool isVideo) {
+  void _showMediaViewer(
+    BuildContext context,
+    List<String> media,
+    int initialIndex,
+    bool isVideo,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MediaViewer(
-          media: media,
-          initialIndex: initialIndex,
-          isVideo: isVideo,
-        ),
+        builder:
+            (context) => MediaViewer(
+              media: media,
+              initialIndex: initialIndex,
+              isVideo: isVideo,
+            ),
       ),
     );
   }
 
   void _sharePost(Post post) {
-    String shareText = post.caption ?? 'Check out this post from Bright Future Foundation!';
+    String shareText =
+        post.caption ?? 'Check out this post from Bright Future Foundation!';
     if (post.imageUrls.isNotEmpty) {
       shareText += '\nImage: ${post.imageUrls.first}';
     } else if (post.videoUrls.isNotEmpty) {
       shareText += '\nVideo: ${post.videoUrls.first}';
     }
-    Share.share(shareText, subject: 'Check out this post from Bright Future Foundation!');
+    Share.share(
+      shareText,
+      subject: 'Check out this post from Bright Future Foundation!',
+    );
   }
 
   Future<void> _deletePost(Post post) async {
     final result = await runNetworkCall(
       context: context,
-      networkCall: () => _supabase
-          .from('posts')
-          .delete()
-          .eq('id', post.id),
+      networkCall: () => _supabase.from('posts').delete().eq('id', post.id),
       errorMessage: 'Erreur lors de la suppression du post.',
     );
 
@@ -290,23 +325,26 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _showDeleteDialog(Post post) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Supprimer le post'),
-        content: const Text('Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Supprimer le post'),
+            content: const Text(
+              'Êtes-vous sûr de vouloir supprimer ce post ? Cette action est irréversible.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Annuler'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _deletePost(post);
+                },
+                child: const Text('Supprimer'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deletePost(post);
-            },
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -338,9 +376,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                     CircleAvatar(
                       radius: 20,
                       backgroundColor: Colors.grey.shade200,
-                      backgroundImage: (post.profilePicture != null && post.profilePicture!.isNotEmpty)
-                          ? NetworkImage(post.profilePicture!)
-                          : const AssetImage('assets/default_profile.png') as ImageProvider<Object>?,
+                      backgroundImage:
+                          (post.profilePicture != null &&
+                                  post.profilePicture!.isNotEmpty)
+                              ? NetworkImage(post.profilePicture!)
+                              : const AssetImage('assets/default_profile.png')
+                                  as ImageProvider<Object>?,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -372,67 +413,91 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           _showDeleteDialog(post);
                         }
                       },
-                      itemBuilder: (context) => [
-                        if (isOwner || isAdmin)
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Supprimer'),
-                          ),
-                      ],
+                      itemBuilder:
+                          (context) => [
+                            if (isOwner || isAdmin)
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Supprimer'),
+                              ),
+                          ],
                     ),
                   ],
                 ),
               ),
               if (post.caption?.isNotEmpty ?? false)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Text(
                     post.caption!,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
+                    style: const TextStyle(fontSize: 15, height: 1.4),
                   ),
                 ),
               if (hasImages || hasVideos) ...[
                 if (hasImages)
                   GestureDetector(
-                    onTap: () => _showMediaViewer(context, post.imageUrls, 0, false),
+                    onTap:
+                        () =>
+                            _showMediaViewer(context, post.imageUrls, 0, false),
                     child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(16),
+                      ),
                       child: AspectRatio(
                         aspectRatio: 1,
                         child: PageView.builder(
                           itemCount: post.imageUrls.length,
-                          itemBuilder: (context, index) => Image.network(
-                            post.imageUrls[index],
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: Colors.grey.shade100,
-                              child: const Center(
-                                child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                          itemBuilder:
+                              (context, index) => Image.network(
+                                post.imageUrls[index],
+                                fit: BoxFit.cover,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      value:
+                                          loadingProgress.expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                    ),
+                                  );
+                                },
+                                errorBuilder:
+                                    (context, error, stackTrace) => Container(
+                                      color: Colors.grey.shade100,
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.broken_image,
+                                          color: Colors.grey,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    ),
                               ),
-                            ),
-                          ),
                         ),
                       ),
                     ),
                   ),
                 if (hasVideos)
                   GestureDetector(
-                    onTap: () => _showMediaViewer(context, post.videoUrls, 0, true),
+                    onTap:
+                        () =>
+                            _showMediaViewer(context, post.videoUrls, 0, true),
                     child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(16),
+                      ),
                       child: AspectRatio(
                         aspectRatio: 9 / 16,
                         child: ChewieVideoWidget(url: post.videoUrls[0]),
@@ -441,7 +506,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
               ],
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     _buildLikeButton(post, isLiked),
@@ -469,10 +537,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: animation,
-                child: child,
-              ),
+              transitionBuilder:
+                  (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
               child: Icon(
                 isLiked ? Icons.favorite : Icons.favorite_border,
                 key: ValueKey<bool>(isLiked),
@@ -483,10 +550,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(width: 4),
             Text(
               post.likesCount.toString(),
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
             ),
           ],
         ),
@@ -510,10 +574,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
             const SizedBox(width: 4),
             Text(
               post.commentCount.toString(),
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
             ),
           ],
         ),
@@ -538,11 +599,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final sortedPosts = [..._posts]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final sortedPosts = [..._posts]
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
     if (_errorMessage != null) {
       return Center(
@@ -556,10 +616,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               child: Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
               ),
             ),
             const SizedBox(height: 24),
@@ -570,7 +627,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
               child: const Text('Réessayer'),
             ),
@@ -583,14 +643,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.photo_library_outlined, size: 48, color: Colors.grey.shade400),
+            Icon(
+              Icons.photo_library_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 16),
             Text(
               'Aucun post à afficher',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -600,7 +661,10 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
               child: const Text('Rafraîchir'),
             ),
@@ -616,13 +680,15 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       edgeOffset: 20,
       child: CustomScrollView(
         controller: _scrollController,
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.only(top: 8),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildPostItem(sortedPosts[index], index),
+                (context, index) => _buildPostItem(sortedPosts[index], index),
                 childCount: sortedPosts.length,
               ),
             ),
@@ -690,11 +756,13 @@ class _MediaViewerState extends State<MediaViewer> {
               return widget.isVideo
                   ? ChewieVideoWidget(url: widget.media[index])
                   : PhotoView(
-                imageProvider: NetworkImage(widget.media[index]),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 2,
-                heroAttributes: PhotoViewHeroAttributes(tag: widget.media[index]),
-              );
+                    imageProvider: NetworkImage(widget.media[index]),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 2,
+                    heroAttributes: PhotoViewHeroAttributes(
+                      tag: widget.media[index],
+                    ),
+                  );
             },
             onPageChanged: (index) {
               setState(() {
@@ -726,17 +794,17 @@ class _MediaViewerState extends State<MediaViewer> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '${_currentIndex + 1} / ${widget.media.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
                   ),
                 ),
               ),
@@ -751,11 +819,8 @@ class ChewieVideoWidget extends StatefulWidget {
   final String url;
   final bool? forceVertical;
 
-  const ChewieVideoWidget({
-    required this.url,
-    this.forceVertical,
-    Key? key,
-  }) : super(key: key);
+  const ChewieVideoWidget({required this.url, this.forceVertical, Key? key})
+    : super(key: key);
 
   @override
   _ChewieVideoWidgetState createState() => _ChewieVideoWidgetState();
@@ -780,9 +845,10 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
         setState(() {
           _chewieController = ChewieController(
             videoPlayerController: _videoPlayerController,
-            aspectRatio: widget.forceVertical ?? false
-                ? 9 / 16
-                : _videoPlayerController.value.aspectRatio,
+            aspectRatio:
+                widget.forceVertical ?? false
+                    ? 9 / 16
+                    : _videoPlayerController.value.aspectRatio,
             autoPlay: false,
             looping: false,
             showControls: true,
@@ -795,7 +861,11 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
             placeholder: Container(
               color: Colors.black,
               child: const Center(
-                child: Icon(Icons.play_circle_outline, color: Colors.white, size: 50),
+                child: Icon(
+                  Icons.play_circle_outline,
+                  color: Colors.white,
+                  size: 50,
+                ),
               ),
             ),
             errorBuilder: (context, errorMessage) {
@@ -805,7 +875,11 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.white, size: 40),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.white,
+                        size: 40,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'Error loading video',
@@ -849,12 +923,11 @@ class _ChewieVideoWidgetState extends State<ChewieVideoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (_chewieController != null && _videoPlayerController.value.isInitialized) {
+    if (_chewieController != null &&
+        _videoPlayerController.value.isInitialized) {
       return GestureDetector(
         onTap: _togglePlay,
-        child: Chewie(
-          controller: _chewieController!,
-        ),
+        child: Chewie(controller: _chewieController!),
       );
     } else {
       return Container(

@@ -3,6 +3,7 @@ import 'package:marquee/marquee.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'utils/responsive.dart';
 
 class FoundationAmountWidget extends StatefulWidget {
   final SupabaseClient supabase;
@@ -34,28 +35,32 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await widget.supabase
-          .from('funds')
-          .select('amount')
-          .eq('id', 'foundation-funds')
-          .single();
+      final response =
+          await widget.supabase
+              .from('funds')
+              .select('amount')
+              .eq('id', 'foundation-funds')
+              .single();
 
-      final amount = (response['amount'] as num?)?.toDouble() ?? widget.initialAmount;
+      final amount =
+          (response['amount'] as num?)?.toDouble() ?? widget.initialAmount;
       widget.onAmountUpdated(amount);
     } catch (e) {
       print('Error loading funds: $e'); // pour debug seulement
       setState(() {
-        _errorMessage = 'Failed to load funds.'; // message court pour l’utilisateur
+        _errorMessage =
+            'Failed to load funds.'; // message court pour l’utilisateur
       });
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    print('Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage');
+    print(
+      'Rendering: loading=$_isLoading, initialAmount=${widget.initialAmount}, error=$_errorMessage',
+    );
     final numberFormat = NumberFormat.currency(
       locale: 'fr_XO',
       symbol: 'CFA',
@@ -77,23 +82,27 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
           ),
         ],
       ),
-      child: _isLoading
-          ? Center(child: CircularProgressIndicator(color: Color(0xFF1976D2)))
-          : Marquee(
-        text: _errorMessage != null
-            ? '💰 Fonds non disponibles : $_errorMessage'
-            : '💰 Fonds disponibles : $formattedAmount',
-        style: GoogleFonts.poppins(
-          color: Color(0xFF1976D2),
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
-        ),
-        scrollAxis: Axis.horizontal,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        blankSpace: 20.0,
-        velocity: 50.0,
-        pauseAfterRound: const Duration(seconds: 1),
-      ),
+      child:
+          _isLoading
+              ? Center(
+                child: CircularProgressIndicator(color: Color(0xFF1976D2)),
+              )
+              : Marquee(
+                text:
+                    _errorMessage != null
+                        ? '💰 Fonds non disponibles : $_errorMessage'
+                        : '💰 Fonds disponibles : $formattedAmount',
+                style: GoogleFonts.poppins(
+                  color: Color(0xFF1976D2),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+                scrollAxis: Axis.horizontal,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                blankSpace: 20.0,
+                velocity: 50.0,
+                pauseAfterRound: const Duration(seconds: 1),
+              ),
     );
   }
 }
