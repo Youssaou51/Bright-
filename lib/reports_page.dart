@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'utils/responsive.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({Key? key}) : super(key: key);
@@ -46,8 +47,8 @@ class _ReportsPageState extends State<ReportsPage> {
 
       setState(() => reports = List<Map<String, dynamic>>.from(response));
     } catch (e) {
-      print('Error fetching reports: $e'); // Pour dev
-      _showError('⚠️ Impossible de charger les rapports. Vérifie ta connexion Internet.');
+      print('Error fetching reports: $e');
+      _showError('Unable to load reports. Check your internet connection.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -71,7 +72,6 @@ class _ReportsPageState extends State<ReportsPage> {
       }
     } catch (e) {
       print('Error checking admin role: $e');
-      // Pas de snack, ce n’est pas critique
     }
   }
 
@@ -89,7 +89,7 @@ class _ReportsPageState extends State<ReportsPage> {
         final userId = _supabase.auth.currentUser?.id;
 
         if (userId == null) {
-          _showError('⚠️ Tu dois être connecté pour uploader un rapport.');
+          _showError('You must be logged in to upload a report.');
           return;
         }
 
@@ -125,7 +125,7 @@ class _ReportsPageState extends State<ReportsPage> {
       }
     } catch (e) {
       print('Error uploading report: $e');
-      _showError('⚠️ Impossible d’uploader le rapport. Vérifie ta connexion.');
+      _showError('Unable to upload report. Check your connection.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -143,10 +143,10 @@ class _ReportsPageState extends State<ReportsPage> {
       await _supabase.from('reports').delete().eq('id', id);
 
       await _fetchReports();
-      _showSuccess('🗑️ Rapport supprimé avec succès');
+      _showSuccess('Report deleted successfully');
     } catch (e) {
       print('Error deleting report: $e');
-      _showError('⚠️ Impossible de supprimer le rapport.');
+      _showError('Unable to delete report.');
     } finally {
       if (mounted) {
         setState(() {
@@ -198,7 +198,13 @@ class _ReportsPageState extends State<ReportsPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Reports', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Reports', 
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 20),
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
@@ -207,8 +213,14 @@ class _ReportsPageState extends State<ReportsPage> {
       floatingActionButton: isAdmin
           ? FloatingActionButton.extended(
         onPressed: _uploadReport,
-        label: Text('Upload', style: GoogleFonts.poppins(color: Colors.white)),
-        icon: const Icon(Icons.upload_file),
+        label: Text(
+          'Upload', 
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontSize: Responsive.sp(context, 14),
+          ),
+        ),
+        icon: Icon(Icons.upload_file, size: Responsive.iconSize(context, base: 20)),
         backgroundColor: Color(0xFF1976D2),
       )
           : null,
@@ -218,8 +230,11 @@ class _ReportsPageState extends State<ReportsPage> {
             onTap: _selectDate,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              margin: const EdgeInsets.all(24),
+              padding: EdgeInsets.symmetric(
+                vertical: Responsive.hp(context, 1.5),
+                horizontal: Responsive.wp(context, 5),
+              ),
+              margin: EdgeInsets.all(Responsive.wp(context, 6)),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -234,17 +249,26 @@ class _ReportsPageState extends State<ReportsPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
-                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.calendar_today, 
+                    color: Color(0xFF1976D2),
+                    size: Responsive.iconSize(context, base: 20),
+                  ),
+                  SizedBox(width: Responsive.wp(context, 3)),
                   Text(
                     '${_monthName(selectedDate.month)} ${selectedDate.year}',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1976D2),
+                      fontSize: Responsive.sp(context, 16),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
+                  SizedBox(width: Responsive.wp(context, 2)),
+                  Icon(
+                    Icons.keyboard_arrow_down, 
+                    color: Colors.grey,
+                    size: Responsive.iconSize(context, base: 20),
+                  ),
                 ],
               ),
             ),
@@ -259,11 +283,17 @@ class _ReportsPageState extends State<ReportsPage> {
                   ? Center(
                 child: Text(
                   'Aucun rapport pour ce mois.',
-                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade600),
+                  style: GoogleFonts.poppins(
+                    fontSize: Responsive.sp(context, 16), 
+                    color: Colors.grey.shade600,
+                  ),
                 ),
               )
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.wp(context, 6),
+                  vertical: Responsive.hp(context, 1.5),
+                ),
                 itemCount: reports.length,
                 itemBuilder: (context, index) {
                   final report = reports[index];
@@ -274,10 +304,41 @@ class _ReportsPageState extends State<ReportsPage> {
                     onDelete: () => _deleteReport(report['id'], report['file_path'], index),
                     onOpen: () async {
                       final url = report['file_url'];
-                      if (url != null && await canLaunchUrl(Uri.parse(url))) {
-                        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                      if (url != null && url.toString().isNotEmpty) {
+                        try {
+                          final uri = Uri.parse(url);
+                          
+                          // Try to launch with external application first
+                          bool launched = await launchUrl(
+                            uri, 
+                            mode: LaunchMode.externalApplication,
+                          );
+                          
+                          // If that fails, try with platform default
+                          if (!launched) {
+                            launched = await launchUrl(
+                              uri,
+                              mode: LaunchMode.platformDefault,
+                            );
+                          }
+                          
+                          // If still fails, try in-app browser
+                          if (!launched) {
+                            launched = await launchUrl(
+                              uri,
+                              mode: LaunchMode.inAppWebView,
+                            );
+                          }
+                          
+                          if (!launched) {
+                            _showError('Unable to open report. Please install a PDF reader app.');
+                          }
+                        } catch (e) {
+                          print('Error opening report: $e');
+                          _showError('Unable to open report. Error: ${e.toString()}');
+                        }
                       } else {
-                        _showError('⚠️ Impossible d’ouvrir le rapport.');
+                        _showError('Invalid report URL.');
                       }
                     },
                   );
@@ -331,33 +392,50 @@ class _ReportCard extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: EdgeInsets.symmetric(vertical: Responsive.hp(context, 1)),
       child: ListTile(
         onTap: onOpen,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: Responsive.wp(context, 4),
+          vertical: Responsive.hp(context, 1.5),
+        ),
         leading: Container(
           decoration: BoxDecoration(
-            color: Color(0xFF1976D2).withOpacity(0.15),
+            color: Color(0xFF1976D2).withAlpha(38),
             borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.all(10),
-          child: Icon(Icons.insert_drive_file, color: Color(0xFF1976D2), size: 28),
+          padding: EdgeInsets.all(Responsive.wp(context, 2.5)),
+          child: Icon(
+            Icons.insert_drive_file, 
+            color: Color(0xFF1976D2), 
+            size: Responsive.iconSize(context, base: 28),
+          ),
         ),
         title: Text(
           report['name'],
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: Responsive.sp(context, 14),
+          ),
           overflow: TextOverflow.ellipsis,
           maxLines: 1,
         ),
         trailing: isAdmin
             ? (isDeleting
-            ? const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFF1976D2)),
+            ? SizedBox(
+          width: Responsive.wp(context, 6),
+          height: Responsive.wp(context, 6),
+          child: const CircularProgressIndicator(
+            strokeWidth: 3, 
+            color: Color(0xFF1976D2),
+          ),
         )
             : IconButton(
-          icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+          icon: Icon(
+            Icons.delete_outline, 
+            color: Colors.red.shade400,
+            size: Responsive.iconSize(context, base: 24),
+          ),
           onPressed: onDelete,
         ))
             : null,
