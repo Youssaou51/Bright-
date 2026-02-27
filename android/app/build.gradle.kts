@@ -33,8 +33,8 @@ android {
         applicationId = "com.boboy.bright"
         minSdk = flutter.minSdkVersion // ⚠ flutter_local_notifications nécessite minSdk >= 21
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = flutter.versionCode.toInt()
+        versionName = flutter.versionName
         
         // Force la locale par défaut pour éviter le texte en chinois
         resConfigs("en", "fr")
