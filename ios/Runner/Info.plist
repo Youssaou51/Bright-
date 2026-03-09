@@ -47,18 +47,18 @@
     <true/>
 
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Cette application nécessite l'accès à votre galerie photo pour vous permettre de sélectionner et télécharger des images pour votre profil.</string>
+    <string>This app needs access to your photo library to select and upload images for your profile and posts.</string>
     
     <key>NSCameraUsageDescription</key>
-    <string>Cette application nécessite l'accès à votre caméra pour prendre des photos et vidéos.</string>
+    <string>This app needs access to your camera to take photos and videos.</string>
     
     <key>NSMicrophoneUsageDescription</key>
-    <string>Cette application nécessite l'accès au microphone pour enregistrer des vidéos avec son.</string>
+    <string>This app needs access to your microphone to record videos with audio.</string>
     
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Cette application nécessite l'accès pour sauvegarder des photos dans votre galerie.</string>
+    <string>This app needs access to save photos to your photo library.</string>
     
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Cette application peut utiliser votre localisation pour certaines fonctionnalités.</string>
+    <string>This app may use your location for certain features.</string>
 </dict>
 </plist>

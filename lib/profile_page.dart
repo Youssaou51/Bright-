@@ -145,11 +145,38 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                   onTap: () async {
                     Navigator.pop(context);
-                    final pickedFile = await _picker.pickImage(
-                      source: ImageSource.camera,
-                    );
-                    if (pickedFile != null) {
-                      await _uploadProfilePicture(File(pickedFile.path));
+                    try {
+                      final pickedFile = await _picker
+                          .pickImage(source: ImageSource.camera)
+                          .catchError((error) {
+                            print('Camera error: $error');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Camera not available on this device',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
+                            return null;
+                          });
+                      if (pickedFile != null) {
+                        await _uploadProfilePicture(File(pickedFile.path));
+                      }
+                    } catch (e) {
+                      print('Error picking image: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Camera error. Please use gallery instead.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
                   },
                 ),

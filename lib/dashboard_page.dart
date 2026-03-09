@@ -314,12 +314,28 @@ class _DashboardPageState extends State<DashboardPage>
                     print('📸 Tentative de prise de photo...');
 
                     try {
-                      final file = await _picker.pickImage(
-                        source: ImageSource.camera,
-                        imageQuality: 85,
-                        maxWidth: 1920,
-                        maxHeight: 1920,
-                      );
+                      final file = await _picker
+                          .pickImage(
+                            source: ImageSource.camera,
+                            imageQuality: 85,
+                            maxWidth: 1920,
+                            maxHeight: 1920,
+                          )
+                          .catchError((error) {
+                            print('❌ Erreur camera picker: $error');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Camera not available on this device',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                            return null;
+                          });
 
                       print('📸 Résultat picker: ${file?.path}');
 
@@ -360,7 +376,9 @@ class _DashboardPageState extends State<DashboardPage>
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Erreur: ${e.toString()}'),
+                            content: Text(
+                              'Camera error. Please use gallery instead.',
+                            ),
                             backgroundColor: Colors.red,
                             duration: Duration(seconds: 5),
                           ),
@@ -425,9 +443,23 @@ class _DashboardPageState extends State<DashboardPage>
                   onTap: () async {
                     Navigator.pop(context);
                     try {
-                      final file = await _picker.pickVideo(
-                        source: ImageSource.camera,
-                      );
+                      final file = await _picker
+                          .pickVideo(source: ImageSource.camera)
+                          .catchError((error) {
+                            print('❌ Erreur video camera picker: $error');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Camera not available on this device',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                  duration: Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                            return null;
+                          });
                       if (file != null && mounted) {
                         _promptForCaption([], [
                           File(file.path),
@@ -439,7 +471,7 @@ class _DashboardPageState extends State<DashboardPage>
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Erreur lors de l\'enregistrement vidéo',
+                              'Camera error. Please use gallery instead.',
                             ),
                             backgroundColor: Colors.red,
                           ),
