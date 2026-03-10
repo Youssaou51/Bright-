@@ -1,0 +1,10 @@
+# This file documents the iOS build configuration fixes needed
+
+## Issue: google_fonts FontWeight constant evaluation error
+## Solution: Update to google_fonts ^8.0.0 or higher
+
+## Issue: Deployment target warnings
+## Solution: Set minimum iOS deployment target to 12.0 in Podfile
+
+## Issue: file_picker deprecated API warnings
+## Solution: These are warnings only, won't prevent build. Will be fixed in future file_picker updates.
