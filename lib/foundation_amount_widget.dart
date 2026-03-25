@@ -67,16 +67,20 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
       decimalDigits: 2,
     );
     final formattedAmount = numberFormat.format(widget.initialAmount);
+    final displayText =
+        _errorMessage != null
+            ? '💰 Fonds non disponibles : $_errorMessage'
+            : '💰 Fonds disponibles : $formattedAmount';
 
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -85,23 +89,34 @@ class _FoundationAmountWidgetState extends State<FoundationAmountWidget> {
       child:
           _isLoading
               ? Center(
-                child: CircularProgressIndicator(color: Color(0xFF1976D2)),
-              )
-              : Marquee(
-                text:
-                    _errorMessage != null
-                        ? '💰 Fonds non disponibles : $_errorMessage'
-                        : '💰 Fonds disponibles : $formattedAmount',
-                style: GoogleFonts.poppins(
-                  color: Color(0xFF1976D2),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                child: SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF1976D2),
+                    strokeWidth: 2,
+                  ),
                 ),
-                scrollAxis: Axis.horizontal,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                blankSpace: 20.0,
-                velocity: 50.0,
-                pauseAfterRound: const Duration(seconds: 1),
+              )
+              : ClipRect(
+                child: Marquee(
+                  text: displayText,
+                  style: GoogleFonts.poppins(
+                    color: Color(0xFF1976D2),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  scrollAxis: Axis.horizontal,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  blankSpace: 30.0,
+                  velocity: 40.0,
+                  pauseAfterRound: const Duration(seconds: 2),
+                  startPadding: 10.0,
+                  accelerationDuration: const Duration(seconds: 1),
+                  accelerationCurve: Curves.linear,
+                  decelerationDuration: const Duration(milliseconds: 500),
+                  decelerationCurve: Curves.easeOut,
+                ),
               ),
     );
   }

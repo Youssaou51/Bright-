@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'user.dart' as localUser;
 import 'manage_roles_page.dart';
 import 'utils/responsive.dart';
+import 'delete_account_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final localUser.User? currentUser;
@@ -452,7 +453,7 @@ class _ProfilePageState extends State<ProfilePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       body:
           _isLoading
               ? const Center(
@@ -462,46 +463,103 @@ class _ProfilePageState extends State<ProfilePage>
                 slivers: [
                   SliverAppBar(
                     automaticallyImplyLeading: false,
-                    expandedHeight: 250,
+                    expandedHeight: Responsive.isMobile(context) ? 280 : 320,
                     pinned: true,
-                    backgroundColor: Colors.white,
-                    elevation: 2,
+                    backgroundColor: Color(0xFF1976D2),
+                    elevation: 0,
                     flexibleSpace: FlexibleSpaceBar(
-                      background: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GestureDetector(
-                            onTap: _changeProfilePicture,
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                CircleAvatar(
-                                  radius: 70,
-                                  backgroundImage:
-                                      _isValidUrl(_profilePictureUrl)
-                                          ? NetworkImage(_profilePictureUrl!)
-                                          : const AssetImage(
-                                                'assets/default_profile.png',
-                                              )
-                                              as ImageProvider,
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.camera_alt,
-                                    size: 24,
-                                    color: Color(0xFF1976D2),
-                                  ),
-                                ),
-                              ],
-                            ),
+                      background: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0xFF1976D2), Color(0xFF1565C0)],
                           ),
-                          const SizedBox(height: 16),
-                        ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 40),
+                            GestureDetector(
+                              onTap: _changeProfilePicture,
+                              child: Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 4,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 65,
+                                      backgroundImage:
+                                          _isValidUrl(_profilePictureUrl)
+                                              ? NetworkImage(
+                                                _profilePictureUrl!,
+                                              )
+                                              : const AssetImage(
+                                                    'assets/default_profile.png',
+                                                  )
+                                                  as ImageProvider,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt,
+                                      size: 20,
+                                      color: Color(0xFF1976D2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _username,
+                              style: GoogleFonts.poppins(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _pseudo.isEmpty
+                                  ? 'Ajouter un pseudo'
+                                  : '@$_pseudo',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     actions: [
@@ -509,8 +567,8 @@ class _ProfilePageState extends State<ProfilePage>
                         IconButton(
                           icon: const Icon(
                             Icons.settings,
-                            color: Color(0xFF1976D2),
-                            size: 30,
+                            color: Colors.white,
+                            size: 28,
                           ),
                           onPressed: () {
                             Navigator.push(
@@ -528,30 +586,13 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(24.0),
+                      padding: const EdgeInsets.all(20.0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _username,
-                            style: GoogleFonts.poppins(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _pseudo.isEmpty ? 'Ajouter un pseudo' : '@$_pseudo',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                          const Text(
                             'Paramètres',
-                            style: TextStyle(
+                            style: GoogleFonts.poppins(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
                               color: Colors.black87,
@@ -567,6 +608,38 @@ class _ProfilePageState extends State<ProfilePage>
                             icon: Icons.alternate_email,
                             title: 'Changer le pseudo',
                             onTap: _changePseudo,
+                          ),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.delete_forever, size: 24),
+                            label: Text(
+                              'Delete Account',
+                              style: GoogleFonts.poppins(fontSize: 16),
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => const DeleteAccountPage(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(
+                                color: Colors.red,
+                                width: 2,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                                horizontal: 32,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              minimumSize: const Size(double.infinity, 56),
+                            ),
                           ),
                           const SizedBox(height: 32),
                           ElevatedButton.icon(

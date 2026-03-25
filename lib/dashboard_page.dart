@@ -913,23 +913,33 @@ class _DashboardPageState extends State<DashboardPage>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: Responsive.pagePadding(context),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Bright Future Foundation',
-                    style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                  Expanded(
+                    child: Text(
+                      'Bright Future Foundation',
+                      style: GoogleFonts.poppins(
+                        fontSize: Responsive.sp(context, 20),
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   if (_isAdmin)
                     IconButton(
-                      icon: Icon(Icons.edit, color: Colors.black, size: 28),
+                      icon: Icon(
+                        Icons.edit,
+                        color: Colors.black,
+                        size: Responsive.iconSize(context, base: 26),
+                      ),
                       onPressed: _showUpdateFundsDialog,
                       tooltip: 'Modifier le montant des fonds',
+                      padding: EdgeInsets.all(8),
+                      constraints: BoxConstraints(),
                     ),
                 ],
               ),

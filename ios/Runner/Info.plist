@@ -47,13 +47,13 @@
     <true/>
 
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>This app needs access to your photo library to select and upload images for your profile and posts.</string>
+    <string>Bright Future needs access to your photo library so you can select existing photos and videos to share with the community or set as your profile picture.</string>
     
     <key>NSCameraUsageDescription</key>
-    <string>This app needs access to your camera to take photos and videos.</string>
+    <string>Bright Future needs camera access to let you take photos and videos to share with the community. For example, you can capture moments from events, take profile pictures, or record video messages to post on your feed.</string>
     
     <key>NSMicrophoneUsageDescription</key>
-    <string>This app needs access to your microphone to record videos with audio.</string>
+    <string>Bright Future needs microphone access to record audio when you create video posts. This allows you to add sound to your video content shared with the community.</string>
     
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>This app needs access to save photos to your photo library.</string>

@@ -76,7 +76,10 @@ class _WelcomePageState extends State<WelcomePage>
             ),
             child: IntrinsicHeight(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 24,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -149,17 +152,19 @@ class _WelcomePageState extends State<WelcomePage>
                             backgroundColor: Colors.white,
                             textColor: Colors.grey.shade800,
                             borderColor: Colors.grey.shade300,
-                            onPressed: () => Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (_, __, ___) => LoginPage(),
-                                transitionsBuilder:
-                                    (_, animation, __, child) => FadeTransition(
-                                  opacity: animation,
-                                  child: child,
+                            onPressed:
+                                () => Navigator.push(
+                                  context,
+                                  PageRouteBuilder(
+                                    pageBuilder: (_, __, ___) => LoginPage(),
+                                    transitionsBuilder:
+                                        (_, animation, __, child) =>
+                                            FadeTransition(
+                                              opacity: animation,
+                                              child: child,
+                                            ),
+                                  ),
                                 ),
-                              ),
-                            ),
                           ),
                           const SizedBox(height: 16),
                           _buildButton(
@@ -167,31 +172,19 @@ class _WelcomePageState extends State<WelcomePage>
                             label: 'Sign Up',
                             backgroundColor: Colors.grey.shade800,
                             textColor: Colors.white,
-                            onPressed: () => Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (_, __, ___) => SignupPage(),
-                                transitionsBuilder:
-                                    (_, animation, __, child) => FadeTransition(
-                                  opacity: animation,
-                                  child: child,
+                            onPressed:
+                                () => Navigator.push(
+                                  context,
+                                  PageRouteBuilder(
+                                    pageBuilder: (_, __, ___) => SignupPage(),
+                                    transitionsBuilder:
+                                        (_, animation, __, child) =>
+                                            FadeTransition(
+                                              opacity: animation,
+                                              child: child,
+                                            ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          TextButton(
-                            onPressed: () {},
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey.shade500,
-                            ),
-                            child: const Text(
-                              'Continue as Guest',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
                           ),
                         ],
                       ),
@@ -207,13 +200,13 @@ class _WelcomePageState extends State<WelcomePage>
   }
 
   Widget _buildButton(
-      BuildContext context, {
-        required String label,
-        required Color backgroundColor,
-        required Color textColor,
-        Color? borderColor,
-        required VoidCallback onPressed,
-      }) {
+    BuildContext context, {
+    required String label,
+    required Color backgroundColor,
+    required Color textColor,
+    Color? borderColor,
+    required VoidCallback onPressed,
+  }) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -234,9 +227,10 @@ class _WelcomePageState extends State<WelcomePage>
           padding: const EdgeInsets.symmetric(vertical: 18),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: borderColor != null
-                ? BorderSide(color: borderColor, width: 1)
-                : BorderSide.none,
+            side:
+                borderColor != null
+                    ? BorderSide(color: borderColor, width: 1)
+                    : BorderSide.none,
           ),
           elevation: 0,
         ),
