@@ -408,19 +408,54 @@ class _HomePageState extends State<HomePage>
                     ),
                     PopupMenuButton<String>(
                       icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(minWidth: 48, minHeight: 48),
+                      tooltip: 'Options',
+                      splashRadius: 24,
                       onSelected: (value) {
                         if (value == 'delete' && (isOwner || isAdmin)) {
                           _showDeleteDialog(post);
+                        } else if (value == 'share') {
+                          _sharePost(post);
                         }
                       },
-                      itemBuilder:
-                          (context) => [
-                            if (isOwner || isAdmin)
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Supprimer'),
+                      itemBuilder: (context) {
+                        final items = <PopupMenuEntry<String>>[];
+
+                        if (isOwner || isAdmin) {
+                          items.add(
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Supprimer'),
+                                ],
                               ),
-                          ],
+                            ),
+                          );
+                        }
+
+                        items.add(
+                          const PopupMenuItem(
+                            value: 'share',
+                            child: Row(
+                              children: [
+                                Icon(Icons.share, color: Colors.blue, size: 20),
+                                SizedBox(width: 8),
+                                Text('Partager'),
+                              ],
+                            ),
+                          ),
+                        );
+
+                        return items;
+                      },
                     ),
                   ],
                 ),
