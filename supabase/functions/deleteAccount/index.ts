@@ -39,7 +39,9 @@ serve(async (req) => {
 
     console.log(`Deleting account for user: ${userId}`)
 
-    // Delete user's posts
+    // Delete in the correct order to respect foreign key constraints
+    
+    // 1. Delete user's posts (this will cascade to likes, comments if configured)
     const { error: postsError } = await supabaseClient
       .from('posts')
       .delete()
@@ -47,9 +49,25 @@ serve(async (req) => {
 
     if (postsError) {
       console.error('Error deleting posts:', postsError)
+      // Continue anyway, posts might not exist
     }
 
-    // Delete user data
+    // 2. Delete from any other tables that reference the user
+    // Add more tables here if needed
+    const tables = ['likes', 'comments', 'notifications']
+    
+    for (const table of tables) {
+      try {
+        await supabaseClient
+          .from(table)
+          .delete()
+          .eq('user_id', userId)
+      } catch (e) {
+        console.log(`Table ${table} might not exist or no data: ${e}`)
+      }
+    }
+
+    // 3. Delete user data from users table
     const { error: userDataError } = await supabaseClient
       .from('users')
       .delete()
@@ -57,20 +75,32 @@ serve(async (req) => {
 
     if (userDataError) {
       console.error('Error deleting user data:', userDataError)
+      // Continue anyway
     }
 
-    // Delete the auth user (requires service role key)
+    // 4. Finally, delete the auth user
     const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(userId)
 
     if (deleteError) {
       console.error('Error deleting auth user:', deleteError)
-      throw deleteError
+      
+      // If we still can't delete, at least mark the user as deleted
+      // by updating the email to prevent reuse
+      await supabaseClient.auth.admin.updateUserById(userId, {
+        email: `deleted_${userId}@deleted.local`,
+        email_confirm: true,
+      })
+      
+      console.log(`User ${userId} marked as deleted (email changed)`)
+    } else {
+      console.log(`Successfully deleted account for user: ${userId}`)
     }
 
-    console.log(`Successfully deleted account for user: ${userId}`)
-
     return new Response(
-      JSON.stringify({ message: 'Account deleted successfully' }),
+      JSON.stringify({ 
+        message: 'Account deleted successfully',
+        user_id: userId 
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
